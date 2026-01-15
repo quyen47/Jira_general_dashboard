@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts';
-import { getJiraFilters, getFilterInsights, JiraFilter, FilterIssue } from '@/actions/filters';
+import { getJiraFilters, getFilterInsights, JiraFilter, FilterIssue, StatusPriorityBreakdown } from '@/actions/filters';
 
 interface LocalFilter {
   id: string;
@@ -16,6 +15,8 @@ const STATUS_COLORS: Record<string, string> = {
   'To Do': '#0052cc',
   'In Progress': '#00B8D9',
   'Done': '#36B37E',
+  'Complete': '#36B37E',
+  'In Review': '#6554C0',
   'default': '#8993a4'
 };
 
@@ -41,7 +42,8 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
   const [newFilterJql, setNewFilterJql] = useState('');
   
   // Insights state
-  const [insights, setInsights] = useState<{ total: number; byStatus: any[]; byPriority: any[]; issues: FilterIssue[] } | null>(null);
+  const [insights, setInsights] = useState<{ total: number; byStatus: any[]; byPriority: any[]; byStatusPriority: StatusPriorityBreakdown[]; issues: FilterIssue[] } | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [isLoadingInsights, startInsightsTransition] = useTransition();
   const [isLoadingFilters, startFiltersTransition] = useTransition();
 
@@ -59,9 +61,9 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
       }
     }
 
-    // Fetch Jira filters
+    // Fetch Jira filters for this project
     startFiltersTransition(async () => {
-      const jFilters = await getJiraFilters();
+      const jFilters = await getJiraFilters(projectKey);
       setJiraFilters(jFilters);
     });
   }, [STORAGE_KEY]);
@@ -284,61 +286,103 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
             
             {isLoadingInsights ? (
               <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>Loading insights...</div>
-            ) : insights && (insights.byStatus.length > 0 || insights.byPriority.length > 0) ? (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* Status Chart */}
-                <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: 8 }}>
-                  <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#5e6c84' }}>By Status</h5>
-                  <div style={{ height: 150 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={insights.byStatus} layout="vertical">
-                        <XAxis type="number" hide />
-                        <YAxis type="category" dataKey="name" width={80} tick={{ fontSize: 12 }} />
-                        <Tooltip />
-                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                          {insights.byStatus.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={STATUS_COLORS[entry.name] || STATUS_COLORS['default']} />
+            ) : insights && insights.byStatusPriority && insights.byStatusPriority.length > 0 ? (
+              <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: 8 }}>
+                <h5 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#5e6c84' }}>
+                  By Status (click to filter issues)
+                  {selectedStatus && (
+                    <button 
+                      onClick={() => setSelectedStatus(null)} 
+                      style={{ marginLeft: '10px', fontSize: '0.75rem', background: '#dfe1e6', border: 'none', padding: '2px 8px', borderRadius: 4, cursor: 'pointer' }}
+                    >
+                      Clear filter
+                    </button>
+                  )}
+                </h5>
+                
+                {/* Status bars with priority breakdown */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {insights.byStatusPriority.map((statusItem) => {
+                    const isSelected = selectedStatus === statusItem.status;
+                    const maxTotal = Math.max(...insights.byStatusPriority.map(s => s.total));
+                    const barWidth = (statusItem.total / maxTotal) * 100;
+                    
+                    return (
+                      <div 
+                        key={statusItem.status}
+                        onClick={() => setSelectedStatus(isSelected ? null : statusItem.status)}
+                        style={{ 
+                          cursor: 'pointer',
+                          padding: '10px',
+                          borderRadius: 6,
+                          background: isSelected ? '#e3f2fd' : 'white',
+                          border: isSelected ? '2px solid #0052cc' : '1px solid #dfe1e6',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                          <span style={{ fontWeight: 600, color: '#172b4d' }}>{statusItem.status}</span>
+                          <span style={{ fontWeight: 500, color: STATUS_COLORS[statusItem.status] || STATUS_COLORS['default'] }}>
+                            {statusItem.total} issues
+                          </span>
+                        </div>
+                        
+                        {/* Main status bar */}
+                        <div style={{ height: '24px', background: '#eee', borderRadius: 4, overflow: 'hidden', marginBottom: '6px' }}>
+                          <div style={{ 
+                            height: '100%', 
+                            width: `${barWidth}%`, 
+                            background: STATUS_COLORS[statusItem.status] || STATUS_COLORS['default'],
+                            display: 'flex',
+                            borderRadius: 4
+                          }}>
+                            {/* Priority segments within the bar */}
+                            {statusItem.priorities.map((p, i) => {
+                              const pWidth = (p.count / statusItem.total) * 100;
+                              return (
+                                <div 
+                                  key={p.name}
+                                  title={`${p.name}: ${p.count}`}
+                                  style={{ 
+                                    width: `${pWidth}%`, 
+                                    height: '100%', 
+                                    background: PRIORITY_COLORS[p.name] || PRIORITY_COLORS['default'],
+                                    borderRight: i < statusItem.priorities.length - 1 ? '1px solid rgba(255,255,255,0.3)' : 'none'
+                                  }} 
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                        
+                        {/* Priority legend for this status */}
+                        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', fontSize: '0.75rem' }}>
+                          {statusItem.priorities.map(p => (
+                            <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <div style={{ width: 8, height: 8, borderRadius: 2, background: PRIORITY_COLORS[p.name] || PRIORITY_COLORS['default'] }} />
+                              <span style={{ color: '#5e6c84' }}>{p.name}: {p.count}</span>
+                            </div>
                           ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Priority Chart */}
-                <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: 8 }}>
-                  <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#5e6c84' }}>By Priority</h5>
-                  <div style={{ height: 150 }}>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={insights.byPriority}
-                          cx="50%"
-                          cy="50%"
-                          outerRadius={50}
-                          dataKey="value"
-                          label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                          labelLine={false}
-                        >
-                          {insights.byPriority.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={PRIORITY_COLORS[entry.name] || PRIORITY_COLORS['default']} />
-                          ))}
-                        </Pie>
-                        <Tooltip />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
               <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>No data to display</div>
             )}
 
-            {/* Issue List Table */}
+            {/* Issue List Table - filtered by selected status */}
             {insights && insights.issues && insights.issues.length > 0 && (
               <div style={{ marginTop: '20px' }}>
                 <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#5e6c84' }}>
-                  Issues ({insights.issues.length} of {insights.total})
+                  Issues 
+                  {selectedStatus ? (
+                    <span> - {selectedStatus} ({insights.issues.filter(i => i.status === selectedStatus).length})</span>
+                  ) : (
+                    <span> ({insights.issues.length} of {insights.total})</span>
+                  )}
                 </h5>
                 <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #dfe1e6', borderRadius: 8 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -353,7 +397,9 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
                       </tr>
                     </thead>
                     <tbody>
-                      {insights.issues.map((issue) => (
+                      {insights.issues
+                        .filter(issue => !selectedStatus || issue.status === selectedStatus)
+                        .map((issue) => (
                         <tr key={issue.key} style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '10px' }}>
                             <span style={{ color: '#0052cc', fontWeight: 500 }}>{issue.key}</span>
@@ -402,3 +448,4 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
     </div>
   );
 }
+
