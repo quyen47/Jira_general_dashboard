@@ -6,6 +6,7 @@ export interface JiraFilter {
   id: string;
   name: string;
   jql: string;
+  description?: string;
   owner?: string;
   favourite?: boolean;
 }
@@ -15,12 +16,13 @@ export async function getJiraFilters(projectKey?: string): Promise<JiraFilter[]>
     const jira = await getJiraClient();
     
     // Fetch user's favourite filters first
-    const favourites = await jira.filters.getMyFilters({ expand: 'jql' });
+    const favourites = await jira.filters.getMyFilters({ expand: 'jql,description' });
     
     let filters: JiraFilter[] = (favourites || []).map((f: any) => ({
       id: f.id,
       name: f.name,
       jql: f.jql || '',
+      description: f.description,
       owner: f.owner?.displayName,
       favourite: true
     }));
@@ -50,6 +52,8 @@ export async function getJiraFilters(projectKey?: string): Promise<JiraFilter[]>
 export interface FilterIssue {
   key: string;
   summary: string;
+  issueType: string;
+  issueTypeIcon?: string;
   status: string;
   statusColor: string;
   priority: string;
@@ -83,7 +87,7 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
       jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
         jql: `${effectiveJql} ORDER BY updated DESC`,
         maxResults: 50,
-        fields: ['summary', 'status', 'priority', 'assignee', 'updated']
+        fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated']
       }),
       jira.issueSearch.countIssues({ jql: effectiveJql })
     ]);
@@ -110,6 +114,8 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
       return {
         key: issue.key,
         summary: issue.fields.summary,
+        issueType: issue.fields.issuetype?.name || 'Unknown',
+        issueTypeIcon: issue.fields.issuetype?.iconUrl,
         status,
         statusColor,
         priority,

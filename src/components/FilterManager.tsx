@@ -8,6 +8,7 @@ interface LocalFilter {
   id: string;
   name: string;
   jql: string;
+  description?: string;
   isJira?: boolean;
 }
 
@@ -123,6 +124,16 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
     ...filters
   ];
 
+  const activeFilter = allFilters.find(f => f.jql === currentFilterJql);
+  
+  const displayInfo = activeFilter ? {
+    description: activeFilter.description,
+    jql: activeFilter.jql
+  } : !currentFilterJql ? {
+    description: "Showing all issues in this project.",
+    jql: `project = "${projectKey}"`
+  } : null;
+
   return (
     <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
       {/* Header Bar - Like ProjectOverview */}
@@ -226,6 +237,31 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
               + Add Filter
             </button>
           </div>
+
+          {/* Active Filter Info (Description & JQL) */}
+          {displayInfo && (displayInfo.description || displayInfo.jql) && (
+            <div style={{ 
+              marginBottom: '20px', 
+              padding: '12px 16px', 
+              background: '#ebf2ff', 
+              borderRadius: 6, 
+              borderLeft: '4px solid #0052cc',
+              fontSize: '0.9rem',
+              color: '#172b4d',
+              lineHeight: '1.4'
+            }}>
+              {displayInfo.description && (
+                <div style={{ marginBottom: displayInfo.jql ? '8px' : 0 }}>
+                  <strong>Description:</strong> {displayInfo.description}
+                </div>
+              )}
+              {displayInfo.jql && (
+                <div>
+                  <strong>JQL:</strong> <code style={{ background: 'rgba(9, 30, 66, 0.08)', padding: '2px 4px', borderRadius: 3, fontSize: '0.85rem', wordBreak: 'break-all' }}>{displayInfo.jql}</code>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Add Form */}
           {isAdding && (
@@ -389,6 +425,7 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
                     <thead style={{ background: '#f4f5f7', position: 'sticky', top: 0 }}>
                       <tr>
                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #dfe1e6' }}>Key</th>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #dfe1e6' }}>Type</th>
                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #dfe1e6' }}>Summary</th>
                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #dfe1e6' }}>Status</th>
                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #dfe1e6' }}>Priority</th>
@@ -403,6 +440,12 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
                         <tr key={issue.key} style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '10px' }}>
                             <span style={{ color: '#0052cc', fontWeight: 500 }}>{issue.key}</span>
+                          </td>
+                          <td style={{ padding: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              {issue.issueTypeIcon && <img src={issue.issueTypeIcon} alt="" style={{ width: 16, height: 16 }} />}
+                              <span style={{ fontSize: '0.75rem', color: '#5e6c84' }}>{issue.issueType}</span>
+                            </div>
                           </td>
                           <td style={{ padding: '10px', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {issue.summary}
