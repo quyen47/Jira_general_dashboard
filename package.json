@@ -9,9 +9,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "jira.js": "^5.2.2",
     "next": "16.1.2",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "recharts": "^3.6.0"
   },
   "devDependencies": {
     "@types/node": "^20",

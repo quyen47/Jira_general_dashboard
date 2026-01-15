@@ -1,0 +1,169 @@
+.container {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  margin-top: 2rem;
+  overflow: hidden;
+}
+
+.scrollWrapper {
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+.chart {
+  position: relative;
+  height: auto;
+  min-height: 400px;
+  min-width: 800px;
+  padding-top: 40px;
+}
+
+.header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  border-bottom: 1px solid #dfe1e6;
+}
+
+.monthMarker {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 0.8rem;
+  color: #5e6c84;
+  white-space: nowrap;
+}
+
+.grid {
+  position: absolute;
+  top: 30px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+.gridLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed #ebecf0;
+}
+
+.bars {
+  position: relative;
+  z-index: 1;
+}
+
+.row {
+  height: 40px;
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.barGroup {
+  position: absolute;
+  height: 24px;
+  top: 8px;
+}
+
+.bar {
+  height: 100%;
+  background: #ebecf0;
+  border-radius: 4px;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  display: flex; /* Stacked segments */
+}
+
+.segment {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    transition: width 0.3s ease;
+    overflow: hidden;
+    white-space: nowrap;
+}
+
+.segmentLabel {
+    padding: 0 4px;
+}
+
+/* Colors matching Jira default statuses */
+.done {
+    background-color: #5b8c00; 
+}
+.inprogress {
+    background-color: #0052cc; 
+}
+.todo {
+    background-color: #8993a4; 
+}
+
+
+.label {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+  color: #172b4d;
+}
+
+.tooltip {
+  visibility: hidden;
+  position: absolute;
+  bottom: 110%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #172b4d;
+  color: white;
+  padding: 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.bar:hover .tooltip {
+  visibility: visible;
+}
+
+.legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+    color: #42526e;
+}
+
+.legendItem {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.legendColor {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.empty {
+  text-align: center;
+  color: #5e6c84;
+  padding: 2rem;
+  background: white;
+  border-radius: 8px;
+}
