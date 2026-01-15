@@ -16,18 +16,11 @@ export default async function ProjectPage({
     searchParams: Promise<{ filterJql?: string }>;
   }) {
   const { key } = await params;
-  const { filterJql } = await searchParams;
+  // Note: filterJql is now only used by FilterManager for its insights
+  // The main page content always shows ALL project data
   
-  // Construct JQLs
-  // Base scope is the project
+  // Base scope is the project - used for all main content
   const baseJql = `project = "${key}"`;
-  
-  // Clean the filterJql to remove any ORDER BY clauses, as they cannot be inside parentheses
-  // and we apply our own sorting.
-  const cleanFilterJql = filterJql ? filterJql.replace(/ORDER\s+BY\s+.*$/i, '').trim() : '';
-  
-  // If a filter is applied, append it as an AND clause
-  const effectiveJql = cleanFilterJql ? `${baseJql} AND (${cleanFilterJql})` : baseJql;
   
   let project;
   let issues = [];
@@ -43,28 +36,21 @@ export default async function ProjectPage({
     const jira = await getJiraClient();
     project = await jira.projects.getProject(key);
     
-    // Epic Base JQL
-    const epicBaseJql = `project = "${key}" AND issuetype = "Epic" AND statusCategory != Done`;
-    // If filter applied, we typically assume the User wants to see Epics that ALSO match, 
-    // OR Epics that contain issues that match. 
-    // For simplicity, let's just filter Epics directly by the criteria if possible.
-    // However, usually filters are about "My Issues" or "High Priority". 
-    // If an Epic is "Low Priority" but has "High Priority" children... 
-    // Let's adhere to simpler "Filter the View" logic first: Filter applies to everything fetched.
-    const epicEffectiveJql = cleanFilterJql ? `${epicBaseJql} AND (${cleanFilterJql})` : epicBaseJql;
+    // Epic JQL - always uses base project scope (no filter)
+    const epicJql = `project = "${key}" AND issuetype = "Epic" AND statusCategory != Done`;
 
-    // Parallel Fetch
+    // Parallel Fetch - all using base JQL (unfiltered)
     const [search, count, epicsSearch] = await Promise.all([
       jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
-        jql: `${effectiveJql} ORDER BY created DESC`,
+        jql: `${baseJql} ORDER BY created DESC`,
         maxResults: 100,
         fields: ['status', 'priority', 'assignee', 'summary']
       }),
       jira.issueSearch.countIssues({
-        jql: effectiveJql
+        jql: baseJql
       }),
       jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
-        jql: `${epicEffectiveJql} ORDER BY created DESC`,
+        jql: `${epicJql} ORDER BY created DESC`,
         maxResults: 50,
         fields: ['summary', 'status', 'created', 'duedate']
       })
@@ -74,18 +60,14 @@ export default async function ProjectPage({
     stats.total = (count as any).total || 0;
     const epics = epicsSearch.issues || [];
 
-    // Fetch children for calculations (if any epics found)
+    // Fetch children for calculations (if any epics found) - unfiltered
     let epicStats: Record<string, { total: number, todo: number, inprogress: number, done: number }> = {};
     if (epics.length > 0) {
         const epicKeys = epics.map(e => e.key);
-        // Children should probably also respect the filter? 
-        // e.g. "How much of 'High Priority' work is done in this Epic?"
-        // YES.
-        const childrenBaseJql = `parent in (${epicKeys.join(',')})`;
-        const childrenEffectiveJql = cleanFilterJql ? `${childrenBaseJql} AND (${cleanFilterJql})` : childrenBaseJql;
+        const childrenJql = `parent in (${epicKeys.join(',')})`;
 
         const childrenSearch = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
-            jql: childrenEffectiveJql,
+            jql: childrenJql,
             maxResults: 1000, 
             fields: ['parent', 'status'] 
         });
@@ -189,21 +171,6 @@ export default async function ProjectPage({
       <div style={{ marginBottom: '2rem' }}>
           <ProjectOverview projectKey={key} />
       </div>
-
-      <div className="stats-overview" style={{ 
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' 
-      }}>
-        <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: 8, textAlign: 'center' }}>
-            <h2 style={{ margin: 0, fontSize: '2.5rem', color: '#0052cc' }}>{stats.total}</h2>
-            <p style={{ margin: 0, color: '#666' }}>Total Issues found</p>
-        </div>
-         <div className="stat-card" style={{ background: 'white', padding: '1rem', borderRadius: 8, textAlign: 'center' }}>
-            <h2 style={{ margin: 0, fontSize: '2.5rem', color: '#0052cc' }}>{issues.length}</h2>
-            <p style={{ margin: 0, color: '#666' }}>Issues Loaded (max 100)</p>
-        </div>
-      </div>
-
-
 
       <FilterManager projectKey={key} />
 

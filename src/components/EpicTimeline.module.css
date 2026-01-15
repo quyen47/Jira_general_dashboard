@@ -8,25 +8,30 @@
 }
 
 .scrollWrapper {
-  overflow-x: auto;
+  overflow: auto;
+  max-height: 600px;
   padding-bottom: 1rem;
+  border: 1px solid #dfe1e6;
+  border-radius: 4px;
 }
 
 .chart {
   position: relative;
   height: auto;
   min-height: 400px;
-  min-width: 800px;
+  min-width: 2000px; /* Ensure enough width for date labels */
   padding-top: 40px;
 }
 
 .header {
-  position: absolute;
+  position: sticky;
   top: 0;
   left: 0;
   right: 0;
   height: 30px;
   border-bottom: 1px solid #dfe1e6;
+  background: white; /* Cover content when scrolling */
+  z-index: 10;
 }
 
 .monthMarker {

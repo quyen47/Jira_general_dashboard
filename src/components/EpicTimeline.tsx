@@ -1,4 +1,6 @@
-import React, { useMemo } from 'react';
+'use client';
+
+import React, { useMemo, useState } from 'react';
 import styles from './EpicTimeline.module.css';
 
 interface EpicData {
@@ -14,6 +16,8 @@ interface EpicData {
 }
 
 export default function EpicTimeline({ epics }: { epics: EpicData[] }) {
+  const [isOpen, setIsOpen] = useState(true);
+  
   const ganttData = useMemo(() => {
     if (!epics || epics.length === 0) return null;
 
@@ -65,90 +69,118 @@ export default function EpicTimeline({ epics }: { epics: EpicData[] }) {
   };
 
   return (
-    <div className={styles.container}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3>Epic Timeline</h3>
-          <div className={styles.legend}>
-            <div className={styles.legendItem}>
-                <div className={`${styles.legendColor} ${styles.done}`}></div>
-                <span>Done</span>
-            </div>
-            <div className={styles.legendItem}>
-                <div className={`${styles.legendColor} ${styles.inprogress}`}></div>
-                <span>In progress</span>
-            </div>
-            <div className={styles.legendItem}>
-                <div className={`${styles.legendColor} ${styles.todo}`}></div>
-                <span>To do</span>
-            </div>
-          </div>
+    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+      {/* Collapsible Header */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ 
+          background: '#0747A6',
+          color: 'white', 
+          padding: '10px 16px', 
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontWeight: 600,
+          letterSpacing: '1px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span>EPIC TIMELINE</span>
+          <span style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.2)', padding: '2px 8px', borderRadius: 4, fontWeight: 400 }}>
+            {epics.length} epics
+          </span>
+        </div>
+        <span>{isOpen ? '▼' : '▶'}</span>
       </div>
 
-      <div className={styles.scrollWrapper}>
-        <div className={styles.chart}>
-            {/* Header Row */}
-            <div className={styles.header}>
-                {months.map((month, i) => {
-                    const left = getPosition(month.getTime());
-                    return (
-                        <div key={i} className={styles.monthMarker} style={{ left: `${left}%` }}>
-                            {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                        </div>
-                    );
-                })}
-            </div>
-            
-            {/* Grid Lines */}
-             <div className={styles.grid}>
-                 {months.map((month, i) => {
-                     const left = getPosition(month.getTime());
-                     return <div key={i} className={styles.gridLine} style={{ left: `${left}%` }} />;
-                 })}
-             </div>
+      {isOpen && (
+        <div className={styles.container} style={{ margin: 0, boxShadow: 'none' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '10px' }}>
+              <div className={styles.legend}>
+                <div className={styles.legendItem}>
+                    <div className={`${styles.legendColor} ${styles.done}`}></div>
+                    <span>Done</span>
+                </div>
+                <div className={styles.legendItem}>
+                    <div className={`${styles.legendColor} ${styles.inprogress}`}></div>
+                    <span>In progress</span>
+                </div>
+                <div className={styles.legendItem}>
+                    <div className={`${styles.legendColor} ${styles.todo}`}></div>
+                    <span>To do</span>
+                </div>
+              </div>
+          </div>
 
-            {/* Bars */}
-            <div className={styles.bars}>
-                {validEpics.map(epic => {
-                    const left = getPosition(epic.start);
-                    const width = Math.max(getPosition(epic.end) - left, 1); // Min 1% width
-                    
-                    const total = epic.totalIssues > 0 ? epic.totalIssues : 1;
-                    const donePercent = Math.round((epic.done / total) * 100);
-                    const progressPercent = Math.round((epic.inprogress / total) * 100);
-                    const todoPercent = 100 - donePercent - progressPercent;
+          <div className={styles.scrollWrapper}>
+            <div className={styles.chart}>
+                {/* Header Row */}
+                <div className={styles.header}>
+                    {months.map((month, i) => {
+                        const left = getPosition(month.getTime());
+                        return (
+                            <div key={i} className={styles.monthMarker} style={{ left: `${left}%` }}>
+                                {month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                            </div>
+                        );
+                    })}
+                </div>
+                
+                {/* Grid Lines */}
+                 <div className={styles.grid}>
+                     {months.map((month, i) => {
+                         const left = getPosition(month.getTime());
+                         return <div key={i} className={styles.gridLine} style={{ left: `${left}%` }} />;
+                     })}
+                 </div>
 
-                    return (
-                        <div key={epic.key} className={styles.row}>
-                            <div className={styles.barGroup} style={{ left: `${left}%`, width: `${width}%` }}>
-                                <div className={styles.bar}>
-                                    {donePercent > 0 && (
-                                        <div className={`${styles.segment} ${styles.done}`} style={{ width: `${donePercent}%` }} />
-                                    )}
-                                    {progressPercent > 0 && (
-                                        <div className={`${styles.segment} ${styles.inprogress}`} style={{ width: `${progressPercent}%` }} />
-                                    )}
-                                    {todoPercent > 0 && (
-                                        <div className={`${styles.segment} ${styles.todo}`} style={{ width: `${todoPercent}%` }} />
-                                    )}
+                {/* Bars */}
+                <div className={styles.bars}>
+                    {validEpics.map(epic => {
+                        const left = getPosition(epic.start);
+                        const width = Math.max(getPosition(epic.end) - left, 1); // Min 1% width
+                        
+                        const total = epic.totalIssues > 0 ? epic.totalIssues : 1;
+                        const donePercent = Math.round((epic.done / total) * 100);
+                        const progressPercent = Math.round((epic.inprogress / total) * 100);
+                        const todoPercent = 100 - donePercent - progressPercent;
 
-                                    <div className={styles.tooltip}>
-                                        <strong>{epic.key}</strong>: {epic.summary}<br/>
-                                        Status: {epic.status}<br/>
-                                        Done: {donePercent}% ({epic.done})<br/>
-                                        In Progress: {progressPercent}% ({epic.inprogress})<br/>
-                                        To Do: {todoPercent}% ({epic.todo})
+                        return (
+                            <div key={epic.key} className={styles.row}>
+                                <div className={styles.barGroup} style={{ left: `${left}%`, width: `${width}%` }}>
+                                    <div className={styles.bar}>
+                                        {donePercent > 0 && (
+                                            <div className={`${styles.segment} ${styles.done}`} style={{ width: `${donePercent}%` }} />
+                                        )}
+                                        {progressPercent > 0 && (
+                                            <div className={`${styles.segment} ${styles.inprogress}`} style={{ width: `${progressPercent}%` }} />
+                                        )}
+                                        {todoPercent > 0 && (
+                                            <div className={`${styles.segment} ${styles.todo}`} style={{ width: `${todoPercent}%` }} />
+                                        )}
+
+                                        <div className={styles.tooltip}>
+                                            <strong>{epic.key}</strong>: {epic.summary}<br/>
+                                            Status: {epic.status}<br/>
+                                            Done: {donePercent}% ({epic.done})<br/>
+                                            In Progress: {progressPercent}% ({epic.inprogress})<br/>
+                                            To Do: {todoPercent}% ({epic.todo})
+                                        </div>
+                                    </div>
+                                    <div className={styles.label}>
+                                        {epic.key} 
                                     </div>
                                 </div>
-                                <div className={styles.label}>
-                                    {epic.key} 
-                                </div>
                             </div>
-                        </div>
-                    );
-                })}
+                        );
+                    })}
+                </div>
             </div>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
+
