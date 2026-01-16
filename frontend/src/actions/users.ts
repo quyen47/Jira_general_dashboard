@@ -24,3 +24,24 @@ export async function searchJiraUsers(query: string) {
     return [];
   }
 }
+
+export async function getProjectUsers(projectKey: string) {
+  try {
+    const jira = await getJiraClient();
+    // Fetch users assignable to the project to get the team list
+    const users = await jira.userSearch.findAssignableUsers({
+      project: projectKey,
+      maxResults: 50
+    });
+
+    return users.map((u: any) => ({
+      accountId: u.accountId,
+      displayName: u.displayName,
+      avatarUrl: u.avatarUrls?.['48x48'] || u.avatarUrls?.['24x24'],
+      emailAddress: u.emailAddress
+    }));
+  } catch (error) {
+    console.error('Failed to fetch project users:', error);
+    return [];
+  }
+}

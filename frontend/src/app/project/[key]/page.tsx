@@ -8,6 +8,7 @@ import QuickLinksManager from '@/components/QuickLinksManager';
 import ProjectOverview from '@/components/ProjectOverview';
 import Timesheet from '@/components/Timesheet';
 import { getProjectTotalHours } from '@/actions/timesheet';
+import RecentActivity from '@/components/RecentActivity';
 
 export default async function ProjectPage({
     params,
@@ -33,6 +34,7 @@ export default async function ProjectPage({
     byAssignee: {} as Record<string, number>,
   };
   let totalHours = 0;
+  let baseUrl = '';
 
   try {
     const jira = await getJiraClient();
@@ -60,6 +62,10 @@ export default async function ProjectPage({
     ]);
     
     totalHours = _totalHours;
+
+    if (project && project.self) {
+        baseUrl = project.self.split('/rest/')[0];
+    }
 
     issues = search.issues || [];
     stats.total = (count as any).total || 0;
@@ -157,6 +163,8 @@ export default async function ProjectPage({
       <div style={{ marginBottom: '2rem' }}>
           <ProjectOverview projectKey={key} offshoreSpentHours={totalHours} epics={epicList} />
       </div>
+
+      <RecentActivity projectKey={key} baseUrl={baseUrl} />
 
       <Timesheet projectKey={key} />
 

@@ -163,12 +163,17 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
   }
 
   // Timeline Bar Logic
-  const startDate = new Date(data.overview.planStartDate).getTime();
-  const endDate = new Date(data.overview.planEndDate).getTime();
-  const now = new Date().getTime();
-  const totalDuration = endDate - startDate;
-  const elapsed = now - startDate;
-  const timeProgress = totalDuration > 0 ? Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100 : 0;
+  const [timeProgress, setTimeProgress] = useState(0);
+
+  useEffect(() => {
+    const startDate = new Date(data.overview.planStartDate).getTime();
+    const endDate = new Date(data.overview.planEndDate).getTime();
+    const now = new Date().getTime();
+    const totalDuration = endDate - startDate;
+    const elapsed = now - startDate;
+    const progress = totalDuration > 0 ? Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100 : 0;
+    setTimeProgress(progress);
+  }, [data.overview.planStartDate, data.overview.planEndDate]);
 
 
   // --- Render Helpers ---
