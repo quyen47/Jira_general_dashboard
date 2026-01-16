@@ -36,6 +36,8 @@ export default function QuickLinksManager({ projectKey }: { projectKey: string }
             { id: 'l3', name: 'TimeSheet', url: '#' },
             { id: 'l4', name: 'Offshore WO', url: '#' },
             { id: 'l5', name: 'Project Overview', url: '#' },
+            { id: 'l6', name: 'PMI', url: '#' },
+            { id: 'l7', name: 'Quotation', url: '#' },
         ];
         setLinks(defaults);
     }

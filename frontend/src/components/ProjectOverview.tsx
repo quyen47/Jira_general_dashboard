@@ -329,28 +329,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                     <div style={{ background: '#f9f9f9', padding: 15, borderRadius: 8 }}>
                        <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8 }}>1. General</h3>
                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                           <div>
-                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Schd. Health</div>
-                               {isEditing ? (
-                                     <select 
-                                        value={data.overview.schdHealth}
-                                        onChange={e => updateOverview('schdHealth', e.target.value as any)}
-                                        style={{ padding: 4, width: '100%' }}
-                                     >
-                                         <option value="green">Green</option>
-                                         <option value="yellow">Yellow</option>
-                                         <option value="red">Red</option>
-                                     </select>
-                                 ) : (
-                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                         <div style={{ 
-                                             width: 12, height: 12, borderRadius: '50%',
-                                             background: data.overview.schdHealth === 'green' ? '#36B37E' : data.overview.schdHealth === 'yellow' ? '#FFAB00' : '#FF5630' 
-                                         }} />
-                                         <span style={{ textTransform: 'capitalize' }}>{data.overview.schdHealth}</span>
-                                     </div>
-                                 )}
-                           </div>
+
                            <div>
                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Complexity</div>
                                {renderEditableInput(data.overview.complexity, v => updateOverview('complexity', v))}
@@ -372,7 +351,31 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
 
                     {/* Health and Progress Section */}
                     <div style={{ background: '#f9f9f9', padding: 15, borderRadius: 8 }}>
-                       <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8 }}>2. Health and Progress</h3>
+                       <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                           <span>2. Health and Progress</span>
+                           <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 8 }}>
+
+                               {isEditing ? (
+                                     <select 
+                                        value={data.overview.schdHealth}
+                                        onChange={e => updateOverview('schdHealth', e.target.value as any)}
+                                        style={{ padding: 4 }}
+                                     >
+                                         <option value="green">Green</option>
+                                         <option value="yellow">Yellow</option>
+                                         <option value="red">Red</option>
+                                     </select>
+                                 ) : (
+                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                         <div style={{ 
+                                             width: 12, height: 12, borderRadius: '50%',
+                                             background: data.overview.schdHealth === 'green' ? '#36B37E' : data.overview.schdHealth === 'yellow' ? '#FFAB00' : '#FF5630' 
+                                         }} />
+                                         <span style={{ textTransform: 'capitalize' }}>{data.overview.schdHealth}</span>
+                                     </div>
+                                 )}
+                           </div>
+                       </h3>
                        
                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                            <div style={{ width: '48%' }}>
