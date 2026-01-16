@@ -6,7 +6,9 @@ import RecentActivity from './RecentActivity';
 
 export default function Timesheet({ projectKey }: { projectKey: string }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [rangeType, setRangeType] = useState('7'); // '7', '14', '30', 'current_month', 'prev_month'
+  const [rangeType, setRangeType] = useState('7'); // '7', '14', '30', 'current_month', 'prev_month', 'custom'
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   const [data, setData] = useState<TimesheetData | null>(null);
   const [baseUrl, setBaseUrl] = useState<string>('');
   const [isPending, startTransition] = useTransition();
@@ -22,6 +24,17 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
     setExpandedActivityId(null);
   }, [selectedCell]);
   
+  // Set initial custom dates when component mounts or when switching to custom (optional)
+  useEffect(() => {
+      if (rangeType === 'custom' && !customStartDate) {
+          const end = new Date();
+          const start = new Date();
+          start.setDate(end.getDate() - 7);
+          setCustomStartDate(start.toISOString().split('T')[0]);
+          setCustomEndDate(end.toISOString().split('T')[0]);
+      }
+  }, [rangeType]);
+
   // Export State
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportFields, setExportFields] = useState({
@@ -33,6 +46,7 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
     // Optional defaults
     worklogId: false,
     issueStatus: false,
+    issueType: false,
     timeSpentSeconds: false,
     updateDate: false,
     comment: false,
@@ -45,6 +59,13 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
 
   // Calculate dates based on rangeType
   const getDateRange = () => {
+    if (rangeType === 'custom') {
+        return {
+            startDate: customStartDate || new Date().toISOString().split('T')[0],
+            endDate: customEndDate || new Date().toISOString().split('T')[0]
+        };
+    }
+
     const today = new Date();
     let startDate = new Date();
     let endDate = new Date(); // Defaults to today
@@ -85,6 +106,17 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
     });
   };
 
+  // Auto-refresh when custom dates change
+  useEffect(() => {
+    if (rangeType === 'custom' && customStartDate && customEndDate) {
+        // Debounce slightly to avoid rapid updates if user types fast (though these are date inputs)
+        const timer = setTimeout(() => {
+            loadData();
+        }, 500);
+        return () => clearTimeout(timer);
+    }
+  }, [customStartDate, customEndDate, rangeType]);
+
   // Generate date columns
   const getDates = () => {
     const dates = [];
@@ -93,9 +125,12 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
     
     // Safety check loop to prevent infinite
     let current = new Date(start);
-    while (current <= end) {
+    // Limit to 60 days to prevent browser crash if user selects huge range
+    let count = 0;
+    while (current <= end && count < 60) {
       dates.push(current.toISOString().split('T')[0]);
       current.setDate(current.getDate() + 1);
+      count++;
     }
     return dates;
   };
@@ -212,21 +247,30 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
       {isOpen && (
         <div style={{ padding: '20px' }}>
           {/* Controls */}
-          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {rangeType === 'custom' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f4f5f7', padding: '4px 8px', borderRadius: 4, border: '1px solid #dfe1e6' }}>
+                    <input 
+                        type="date" 
+                        value={customStartDate} 
+                        onChange={(e) => setCustomStartDate(e.target.value)}
+                        style={{ border: 'none', background: 'transparent', fontSize: '0.9rem', color: '#172b4d' }}
+                    />
+                    <span style={{ color: '#6b778c' }}>to</span>
+                    <input 
+                        type="date" 
+                        value={customEndDate} 
+                        onChange={(e) => setCustomEndDate(e.target.value)}
+                        style={{ border: 'none', background: 'transparent', fontSize: '0.9rem', color: '#172b4d' }}
+                    />
+                </div>
+            )}
+            
             <select 
               value={rangeType} 
               onChange={(e) => {
                 setRangeType(e.target.value);
-                // Need to reload data when range changes
-                // Since state is asynchronous, we can't call loadData directly with new state immediately 
-                // unless we pass it. But loadData uses state. 
-                // Better approach: use a ref or pass param.
-                // Or just rely on user clicking "Refresh"? 
-                // UX: Auto-refresh is better.
-                // Let's modify loadData to accept optional override or just trigger useEffect dependency?
-                // Adding rangeType to dependency of useEffect might cause loops if not careful.
-                // We'll use a timeout hack or refactor loadData.
-                // Let's refactor:
+                // Trigger refresh cleanly
                 setTimeout(() => document.getElementById('refresh-timesheet')?.click(), 100);
               }}
               style={{
@@ -242,6 +286,7 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
               <option value="30">Last 30 Days</option>
               <option value="current_month">Current Month</option>
               <option value="prev_month">Previous Month</option>
+              <option value="custom">Custom Range</option>
             </select>
             
              <button 
