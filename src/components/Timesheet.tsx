@@ -1,0 +1,539 @@
+'use client';
+
+import { useState, useEffect, useTransition } from 'react';
+import { getProjectWorklogs, TimesheetData, WorklogEntry } from '@/actions/timesheet';
+
+export default function Timesheet({ projectKey }: { projectKey: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [rangeType, setRangeType] = useState('7'); // '7', '14', '30', 'current_month', 'prev_month'
+  const [data, setData] = useState<TimesheetData | null>(null);
+  const [baseUrl, setBaseUrl] = useState<string>('');
+  const [isPending, startTransition] = useTransition();
+  const [selectedCell, setSelectedCell] = useState<{
+    date: string;
+    authorName: string;
+    entries: WorklogEntry[];
+  } | null>(null);
+  
+  // Export State
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFields, setExportFields] = useState({
+    issueKey: true,
+    issueSummary: true,
+    timeSpent: true,
+    startDate: true,
+    author: true,
+    // Optional defaults
+    worklogId: false,
+    issueStatus: false,
+    timeSpentSeconds: false,
+    updateDate: false,
+    comment: false,
+    authorAccountId: false,
+    projectKey: false,
+    projectName: false,
+    components: false,
+    labels: false
+  });
+
+  // Calculate dates based on rangeType
+  const getDateRange = () => {
+    const today = new Date();
+    let startDate = new Date();
+    let endDate = new Date(); // Defaults to today
+
+    if (rangeType === 'current_month') {
+      startDate = new Date(today.getFullYear(), today.getMonth(), 1);
+      endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    } else if (rangeType === 'prev_month') {
+      startDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      endDate = new Date(today.getFullYear(), today.getMonth(), 0);
+    } else {
+      const days = parseInt(rangeType);
+      startDate.setDate(today.getDate() - days + 1); // +1 to include today as last day? Adjust logic as needed.
+      // Usually "Last 7 days" includes today.
+    }
+    
+    return { 
+      startDate: startDate.toISOString().split('T')[0], 
+      endDate: endDate.toISOString().split('T')[0] 
+    };
+  };
+
+  const { startDate, endDate } = getDateRange();
+
+  // Initial load
+  useEffect(() => {
+    if (isOpen && !data) {
+      loadData();
+    }
+  }, [isOpen]);
+
+  const loadData = () => {
+    startTransition(async () => {
+      const range = getDateRange();
+      const result = await getProjectWorklogs(projectKey, range);
+      setData(result.data);
+      setBaseUrl(result.baseUrl);
+    });
+  };
+
+  // Generate date columns
+  const getDates = () => {
+    const dates = [];
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    // Safety check loop to prevent infinite
+    let current = new Date(start);
+    while (current <= end) {
+      dates.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+    return dates;
+  };
+
+  const dates = getDates();
+
+  // Get unique users
+  const getUsers = () => {
+    if (!data) return [];
+    
+    const usersMap = new Map<string, { accountId: string; displayName: string; avatarUrl?: string }>();
+    
+    Object.values(data).forEach(dayData => {
+      Object.values(dayData).forEach(userEntry => {
+        if (!usersMap.has(userEntry.author.accountId)) {
+          usersMap.set(userEntry.author.accountId, userEntry.author);
+        }
+      });
+    });
+    
+    return Array.from(usersMap.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
+  };
+
+  const users = getUsers();
+
+  const handleExport = () => {
+    if (!data) return;
+    
+    // Flatten data for export
+    const rows = [];
+    // Header
+    const fields = Object.keys(exportFields).filter(key => exportFields[key as keyof typeof exportFields]);
+    rows.push(fields.join(','));
+    
+    Object.values(data).forEach(dayData => {
+      Object.values(dayData).forEach(userEntry => {
+        userEntry.entries.forEach(entry => {
+          const row = fields.map(field => {
+            let val = '';
+            switch(field) {
+              case 'issueKey': val = entry.issueKey; break;
+              case 'issueSummary': val = `"${entry.issueSummary.replace(/"/g, '""')}"`; break;
+              case 'timeSpent': val = entry.timeSpent; break;
+              case 'startDate': val = entry.started.split('T')[0]; break;
+              case 'author': val = entry.author.displayName; break;
+              case 'worklogId': val = entry.id; break;
+              case 'issueStatus': val = entry.issueStatus; break;
+              case 'timeSpentSeconds': val = entry.timeSpentSeconds.toString(); break;
+              case 'updateDate': val = entry.updated ? entry.updated.split('T')[0] : ''; break;
+              case 'comment': val = entry.comment ? `"${entry.comment.replace(/"/g, '""')}"` : ''; break;
+              case 'authorAccountId': val = entry.author.accountId; break;
+              case 'projectKey': val = entry.projectKey; break;
+              case 'projectName': val = entry.projectName; break;
+              case 'components': val = `"${entry.components.join(', ')}"`; break;
+              case 'labels': val = `"${entry.labels.join(', ')}"`; break;
+            }
+            return val;
+          });
+          rows.push(row.join(','));
+        });
+      });
+    });
+    
+    // Download CSV
+    const csvContent = "data:text/csv;charset=utf-8," + rows.join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `worklogs_${projectKey}_${startDate}_${endDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShowExportModal(false);
+  };
+
+  const formatSeconds = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+  
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  return (
+    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+      {/* Header */}
+      <div 
+        onClick={() => setIsOpen(!isOpen)}
+        style={{ 
+          background: '#0747A6', 
+          color: 'white', 
+          padding: '10px 16px', 
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontWeight: 600,
+          letterSpacing: '1px'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span>TIMESHEET</span>
+        </div>
+        <span>{isOpen ? '▼' : '▶'}</span>
+      </div>
+
+      {isOpen && (
+        <div style={{ padding: '20px' }}>
+          {/* Controls */}
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <select 
+              value={rangeType} 
+              onChange={(e) => {
+                setRangeType(e.target.value);
+                // Need to reload data when range changes
+                // Since state is asynchronous, we can't call loadData directly with new state immediately 
+                // unless we pass it. But loadData uses state. 
+                // Better approach: use a ref or pass param.
+                // Or just rely on user clicking "Refresh"? 
+                // UX: Auto-refresh is better.
+                // Let's modify loadData to accept optional override or just trigger useEffect dependency?
+                // Adding rangeType to dependency of useEffect might cause loops if not careful.
+                // We'll use a timeout hack or refactor loadData.
+                // Let's refactor:
+                setTimeout(() => document.getElementById('refresh-timesheet')?.click(), 100);
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 4,
+                border: '1px solid #dfe1e6',
+                background: '#f4f5f7',
+                fontSize: '0.9rem'
+              }}
+            >
+              <option value="7">Last 7 Days</option>
+              <option value="14">Last 14 Days</option>
+              <option value="30">Last 30 Days</option>
+              <option value="current_month">Current Month</option>
+              <option value="prev_month">Previous Month</option>
+            </select>
+            
+             <button 
+              onClick={() => setShowExportModal(true)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 4,
+                border: '1px solid #dfe1e6',
+                background: 'white',
+                color: '#172b4d',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              <span style={{ fontSize: '1.1rem' }}>📥</span> Export
+            </button>
+            
+            <button 
+              id="refresh-timesheet"
+              onClick={loadData}
+              disabled={isPending}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 4,
+                border: 'none',
+                background: '#0052cc',
+                color: 'white',
+                cursor: 'pointer',
+                opacity: isPending ? 0.7 : 1
+              }}
+            >
+              {isPending ? 'Loading...' : 'Refresh'}
+            </button>
+          </div>
+
+          {/* Grid */}
+          <div style={{ overflowX: 'auto', marginLeft: '-20px', marginRight: '-20px', paddingLeft: '20px', paddingRight: '20px' }}>
+            <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem' }}>
+              <thead>
+                <tr>
+                  <th style={{ 
+                    textAlign: 'left', 
+                    padding: '10px', 
+                    borderBottom: '2px solid #dfe1e6', 
+                    minWidth: '200px', 
+                    width: '200px',
+                    position: 'sticky',
+                    left: 0,
+                    zIndex: 20,
+                    background: 'white',
+                    borderRight: '1px solid #dfe1e6'
+                  }}>Member</th>
+                  <th style={{ 
+                    textAlign: 'center', 
+                    padding: '10px 20px', 
+                    borderBottom: '2px solid #dfe1e6', 
+                    whiteSpace: 'nowrap',
+                    position: 'sticky',
+                    left: '200px',
+                    zIndex: 20,
+                    background: 'white',
+                    borderRight: '2px solid #dfe1e6'
+                  }}>Total</th>
+                  {dates.map(date => {
+                    const isToday = date === todayStr;
+                    return (
+                      <th key={date} style={{ 
+                        textAlign: 'center', 
+                        padding: '10px', 
+                        borderBottom: '2px solid #dfe1e6', 
+                        minWidth: '80px',
+                        background: isToday ? '#e3fcef' : 'transparent' // Highlight today
+                      }}>
+                        {formatDate(date)}
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {users.length === 0 ? (
+                  <tr>
+                    <td colSpan={dates.length + 2} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                      {isPending ? 'Loading worklogs...' : 'No worklogs found for this period'}
+                    </td>
+                  </tr>
+                ) : (
+                  users.map(user => {
+                    let userTotal = 0;
+                    // Calculate total first
+                    dates.forEach(date => {
+                       const entry = data?.[date]?.[user.accountId];
+                       userTotal += (entry?.totalSeconds || 0);
+                    });
+                    
+                    return (
+                      <tr key={user.accountId}>
+                        <td style={{ 
+                          padding: '10px', 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '8px',
+                          borderBottom: '1px solid #eee',
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 10,
+                          background: 'white',
+                          borderRight: '1px solid #dfe1e6',
+                          minWidth: '200px',
+                          width: '200px'
+                        }}>
+                          {user.avatarUrl && (
+                            <img src={user.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />
+                          )}
+                          <span style={{ fontWeight: 500, color: '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>{user.displayName}</span>
+                        </td>
+                        <td style={{ 
+                          textAlign: 'center', 
+                          padding: '10px 20px', 
+                          fontWeight: 600, 
+                          background: 'white',
+                          whiteSpace: 'nowrap',
+                          borderBottom: '1px solid #eee',
+                          position: 'sticky',
+                          left: '200px',
+                          zIndex: 10,
+                          borderRight: '2px solid #dfe1e6'
+                        }}>
+                          {formatSeconds(userTotal)}
+                        </td>
+                        {dates.map(date => {
+                          const entry = data?.[date]?.[user.accountId];
+                          const seconds = entry?.totalSeconds || 0;
+                          const isToday = date === todayStr;
+                          
+                          return (
+                            <td 
+                              key={date} 
+                              onClick={() => {
+                                if (entry && entry.entries.length > 0) {
+                                  setSelectedCell({
+                                    date: formatDate(date),
+                                    authorName: user.displayName,
+                                    entries: entry.entries
+                                  });
+                                }
+                              }}
+                              style={{ 
+                                textAlign: 'center', 
+                                padding: '10px',
+                                cursor: seconds > 0 ? 'pointer' : 'default',
+                                background: seconds > 0 ? (selectedCell?.date === formatDate(date) && selectedCell?.authorName === user.displayName ? '#deebff' : isToday ? '#e3fcef' : 'transparent') : (isToday ? '#e3fcef' : 'transparent'),
+                                color: seconds > 0 ? '#0052cc' : '#ccc',
+                                borderBottom: '1px solid #eee'
+                              }}
+                            >
+                              {seconds > 0 ? formatSeconds(seconds) : '-'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Details Modal */}
+          {selectedCell && (
+            <div style={{ 
+              marginTop: '20px', 
+              padding: '20px', 
+              background: '#f4f5f7', 
+              borderRadius: 8,
+              border: '1px solid #dfe1e6',
+              animation: 'fadeIn 0.2s ease-in-out'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h4 style={{ margin: 0, color: '#172b4d' }}>
+                  Worklogs for {selectedCell.authorName} on {selectedCell.date}
+                </h4>
+                <button 
+                  onClick={() => setSelectedCell(null)}
+                  style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#5e6c84' }}
+                >
+                  ×
+                </button>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {selectedCell.entries.map(entry => (
+                  <div key={entry.id} style={{ background: 'white', padding: '12px', borderRadius: 4, border: '1px solid #dfe1e6' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <a 
+                        href={`${baseUrl}/browse/${entry.issueKey}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ fontWeight: 600, color: '#0052cc', textDecoration: 'none', cursor: 'pointer' }}
+                        onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                        onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                      >
+                        {entry.issueKey}
+                      </a>
+                      <span style={{ fontWeight: 600, color: '#00875a' }}>{entry.timeSpent}</span>
+                    </div>
+                    <div style={{ fontSize: '0.9rem', color: '#172b4d', marginBottom: '4px' }}>
+                      {entry.issueSummary}
+                    </div>
+                    {entry.comment && (
+                      <div style={{ fontSize: '0.85rem', color: '#5e6c84', fontStyle: 'italic', borderTop: '1px solid #eee', marginTop: '6px', paddingTop: '6px' }}>
+                        "{entry.comment}"
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Export Modal */}
+          {showExportModal && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000
+            }}>
+              <div style={{
+                background: 'white',
+                padding: '24px',
+                borderRadius: '8px',
+                width: '400px',
+                maxWidth: '90%',
+                maxHeight: '90vh',
+                overflowY: 'auto'
+              }}>
+                <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#172b4d' }}>Export Worklogs</h3>
+                
+                <div style={{ marginBottom: '20px' }}>
+                  <h4 style={{ fontSize: '0.9rem', marginBottom: '10px' }}>Select Fields</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
+                    {Object.keys(exportFields).map(key => (
+                      <label key={key} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', cursor: 'pointer' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={(exportFields as any)[key]} 
+                          onChange={e => setExportFields({...exportFields, [key]: e.target.checked})}
+                        />
+                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                  <button 
+                    onClick={() => setShowExportModal(false)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 4,
+                      border: 'none',
+                      background: 'none',
+                      color: '#42526e',
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleExport}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: 4,
+                      border: 'none',
+                      background: '#0052cc',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    Export CSV
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  );
+}

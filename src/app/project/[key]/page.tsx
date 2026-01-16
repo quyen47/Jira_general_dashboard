@@ -7,6 +7,7 @@ import FilterManager from '@/components/FilterManager';
 import StakeholderManager from '@/components/StakeholderManager';
 import QuickLinksManager from '@/components/QuickLinksManager';
 import ProjectOverview from '@/components/ProjectOverview';
+import Timesheet from '@/components/Timesheet';
 
 export default async function ProjectPage({
     params,
@@ -171,6 +172,8 @@ export default async function ProjectPage({
       <div style={{ marginBottom: '2rem' }}>
           <ProjectOverview projectKey={key} />
       </div>
+
+      <Timesheet projectKey={key} />
 
       <FilterManager projectKey={key} />
 
