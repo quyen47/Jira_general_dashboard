@@ -317,7 +317,7 @@ function ActivityItemRow({ item, baseUrl }: { item: ActivityItem, baseUrl: strin
                         href={baseUrl ? `${baseUrl}/browse/${item.issue.key}` : '#'} 
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#0052cc', fontWeight: 500, textDecoration: 'none' }}
+                        style={{ color: '#0052cc', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}
                     >
                         {item.issue.key}
                     </a>
@@ -351,14 +351,21 @@ function ActivityByTicketGroup({ activities, baseUrl }: { activities: ActivityIt
                          <div style={{ background: '#42526e', color: 'white', fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px', borderRadius: 3 }}>
                              {key}
                          </div>
-                         <div style={{ fontWeight: 600, fontSize: '0.9rem', color: '#172b4d' }}>
+                         <a 
+                             href={baseUrl ? `${baseUrl}/browse/${key}` : '#'}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             style={{ fontWeight: 600, fontSize: '0.9rem', color: '#172b4d', textDecoration: 'none', cursor: 'pointer' }}
+                             onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                             onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                         >
                              {data.summary}
-                         </div>
+                         </a>
                          <a 
                             href={baseUrl ? `${baseUrl}/browse/${key}` : '#'} 
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#0052cc', textDecoration: 'none' }}
+                            style={{ marginLeft: 'auto', fontSize: '0.8rem', color: '#0052cc', textDecoration: 'none', cursor: 'pointer' }}
                         >
                             Open ↗
                         </a>

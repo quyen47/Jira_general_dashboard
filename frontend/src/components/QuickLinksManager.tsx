@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { searchIssues, SearchResult } from '@/actions/search';
 
 interface QuickLink {
   id: string;
@@ -17,6 +18,15 @@ export default function QuickLinksManager({ projectKey }: { projectKey: string }
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [url, setUrl] = useState('');
+
+  // Search Modal State
+  const [showSearchModal, setShowSearchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [loadingSearch, setLoadingSearch] = useState(false);
+  const [pendingLink, setPendingLink] = useState<QuickLink | null>(null);
+  const [jiraBaseUrl, setJiraBaseUrl] = useState('');
+  const [hasCheckedAutoOpen, setHasCheckedAutoOpen] = useState(false);
 
   const STORAGE_KEY = `jira_dashboard_links_${projectKey}`;
 
@@ -81,6 +91,66 @@ export default function QuickLinksManager({ projectKey }: { projectKey: string }
       }
   };
 
+  const handleLinkClick = (e: React.MouseEvent, link: QuickLink) => {
+      if (isEditing) return;
+
+      const isPMI = link.name.trim().toLowerCase() === 'pmi';
+      const isEmpty = !link.url || link.url === '#' || link.url.trim() === '';
+
+      if (isPMI && isEmpty) {
+          e.preventDefault();
+          setPendingLink(link);
+          setShowSearchModal(true);
+          // Initial search, forcing Epic type and PMI project since state update is async
+          performSearch('', 'Epic', 'PMI 2.0');
+      }
+  };
+
+  const performSearch = async (q: string, explicitType?: string, explicitProject?: string) => {
+      setLoadingSearch(true);
+      
+      let type = explicitType;
+      let targetProject = explicitProject || projectKey;
+
+      // If relying on state (subsequent searches)
+      if (!explicitProject && pendingLink?.name.trim().toLowerCase() === 'pmi') {
+          targetProject = 'PMI 2.0';
+          if (!type) type = 'Epic';
+      }
+
+      const res = await searchIssues(q, targetProject, type);
+      setSearchResults(res.issues);
+      if (res.baseUrl) setJiraBaseUrl(res.baseUrl);
+      setLoadingSearch(false);
+  };
+
+  // Auto-open if PMI is missing
+  useEffect(() => {
+    if (links.length > 0 && !hasCheckedAutoOpen) {
+        const pmi = links.find(l => l.name.trim().toLowerCase() === 'pmi');
+        // If PMI exists and is empty
+        if (pmi && (!pmi.url || pmi.url === '#' || pmi.url.trim() === '')) {
+             setPendingLink(pmi);
+             setShowSearchModal(true);
+             performSearch('', 'Epic', 'PMI 2.0');
+        }
+        setHasCheckedAutoOpen(true);
+    }
+  }, [links, hasCheckedAutoOpen]);
+
+  const handleIssueSelect = (issue: SearchResult) => {
+      if (!pendingLink) return;
+      
+      const newUrl = jiraBaseUrl ? `${jiraBaseUrl}/browse/${issue.key}` : `https://jira.example.com/browse/${issue.key}`; // Fallback if no base url found (unlikely if credentials work)
+      
+      const newList = links.map(l => l.id === pendingLink.id ? { ...l, url: newUrl } : l);
+      saveLinks(newList);
+      
+      setShowSearchModal(false);
+      setPendingLink(null);
+      setSearchQuery('');
+  };
+
   return (
     <div style={{ 
         background: 'white', 
@@ -131,6 +201,7 @@ export default function QuickLinksManager({ projectKey }: { projectKey: string }
                                         href={link.url} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
+                                        onClick={(e) => handleLinkClick(e, link)}
                                         style={{ 
                                             textDecoration: isConfigured ? 'underline' : 'none', 
                                             color: isConfigured ? '#0052cc' : '#172b4d', 
@@ -138,7 +209,8 @@ export default function QuickLinksManager({ projectKey }: { projectKey: string }
                                             display: 'flex',
                                             alignItems: 'center',
                                             gap: '8px',
-                                            flex: 1
+                                            flex: 1,
+                                            cursor: 'pointer'
                                         }}
                                     >
                                         <span style={{ color: '#0052cc', fontSize: '1rem' }}>↗</span>
@@ -189,6 +261,75 @@ export default function QuickLinksManager({ projectKey }: { projectKey: string }
                 <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', marginTop: 4 }}>
                     <button onClick={() => setEditId(null)} style={{ fontSize: '0.75rem' }}>Cancel</button>
                     <button onClick={handleSave} style={{ fontSize: '0.75rem', color: '#0052cc' }}>Add</button>
+                </div>
+            </div>
+        )}
+
+        {/* Search Modal */}
+        {showSearchModal && (
+            <div style={{
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0,0,0,0.5)', zIndex: 1000,
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+                <div style={{ background: 'white', padding: 20, borderRadius: 8, width: 400, maxWidth: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
+                    <h3 style={{ marginTop: 0 }}>Select PMI Ticket</h3>
+                    <p style={{ fontSize: '0.9rem', color: '#666', marginBottom: 15 }}>
+                        Search for the Jira issue corresponding to PMI for this project.
+                    </p>
+                    
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
+                        <input 
+                            type="text" 
+                            placeholder="Search by text..." 
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && performSearch(searchQuery)}
+                            style={{ flex: 1, padding: '8px', borderRadius: 4, border: '1px solid #dfe1e6' }}
+                        />
+                        <button 
+                            onClick={() => performSearch(searchQuery)}
+                            disabled={loadingSearch}
+                            style={{ padding: '8px 16px', background: '#0052cc', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                        >
+                            {loadingSearch ? '...' : 'Search'}
+                        </button>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 300, overflowY: 'auto' }}>
+                        {searchResults.map(issue => (
+                            <div 
+                                key={issue.key}
+                                onClick={() => handleIssueSelect(issue)}
+                                style={{ 
+                                    padding: '8px', 
+                                    border: '1px solid #eee', 
+                                    borderRadius: 4, 
+                                    cursor: 'pointer',
+                                    background: '#fafbfc',
+                                }}
+                                onMouseOver={(e) => e.currentTarget.style.background = '#ebecf0'}
+                                onMouseOut={(e) => e.currentTarget.style.background = '#fafbfc'}
+                            >
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ fontWeight: 600, color: '#0052cc' }}>{issue.key}</span>
+                                    <span style={{ fontSize: '0.8rem', background: '#dfe1e6', padding: '2px 4px', borderRadius: 3 }}>{issue.status}</span>
+                                </div>
+                                <div style={{ fontSize: '0.9rem', color: '#172b4d', marginTop: 4 }}>
+                                    {issue.summary}
+                                </div>
+                            </div>
+                        ))}
+                        {!loadingSearch && searchResults.length === 0 && (
+                            <div style={{ textAlign: 'center', color: '#666', fontStyle: 'italic', padding: 10 }}>
+                                No issues found.
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ marginTop: 20, textAlign: 'right' }}>
+                        <button onClick={() => setShowSearchModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5e6c84' }}>Cancel</button>
+                    </div>
                 </div>
             </div>
         )}
