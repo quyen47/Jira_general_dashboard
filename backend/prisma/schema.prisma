@@ -1,0 +1,70 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Project {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  key       String   @unique
+  name      String
+  lead      String?
+  type      String?
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  overview  ProjectOverview?
+  worklogs  Worklog[]
+}
+
+model ProjectOverview {
+  id              String   @id @default(auto()) @map("_id") @db.ObjectId
+  projectId       String   @unique @db.ObjectId
+  project         Project  @relation(fields: [projectId], references: [id])
+  
+  // Overview Data
+  schdHealth      String   @default("yellow")
+  complexity      String   @default("Medium")
+  contractStart   String?
+  contractEnd     String?
+  planStart       String?
+  planEnd         String?
+  percentComplete String?
+  clientLocation  String?
+  currentPhase    String?
+  nextGateReview  String?
+  bpwTargetMargin String?
+  currentMargin   String?
+
+  // Snapshots stored as Json for flexibility (perfect for Mongo)
+  budgetOverall   Json?
+  budgetOnshore   Json?
+  budgetOffshore  Json?
+  healthStats     Json?
+
+  updatedAt       DateTime @updatedAt
+}
+
+model Worklog {
+  id               String   @id @default(auto()) @map("_id") @db.ObjectId
+  jiraWorklogId    String   @unique // External ID from Jira
+  issueKey         String
+  issueSummary     String?
+  authorAccountId  String
+  authorDisplayName String
+  authorAvatarUrl  String?
+  timeSpent        String
+  timeSpentSeconds Int
+  started          DateTime
+  comment          String?
+  
+  projectId        String   @db.ObjectId
+  project          Project  @relation(fields: [projectId], references: [id])
+
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
