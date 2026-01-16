@@ -20,12 +20,7 @@ interface OverviewData {
     currentMargin: string;
 }
 
-interface BudgetRow {
-  label: string;
-  budget?: string;
-  hours?: string;
-  [key: string]: string | undefined;
-}
+
 
 interface HealthStats {
   notStarted: number;
@@ -47,11 +42,16 @@ interface HealthStats {
   decisionLate: number;
 }
 
+interface BudgetData {
+  contractValue: string;
+  onshoreBudgetHours: string;
+  offshoreBudgetHours: string;
+  onshoreSpentHours: string;
+}
+
 interface ProjectData {
   overview: OverviewData;
-  budgetOverall: BudgetRow[];
-  budgetOnshore: BudgetRow[];
-  budgetOffshore: BudgetRow[];
+  budget: BudgetData;
   health: HealthStats;
 }
 
@@ -72,28 +72,12 @@ const DEFAULT_DATA: ProjectData = {
     bpwTargetMargin: '75%',
     currentMargin: '68%',
   },
-  budgetOverall: [
-     { label: 'Baseline', budget: '$350,000', hours: '2,042' },
-     { label: 'Total (Contract+CRs)', budget: '$350,000', hours: '2,042' },
-     { label: 'Invoiced / Worked', budget: '$60,775', hours: '425.25' },
-     { label: 'Remaining', budget: '$289,225', hours: '1,616.75' },
-     { label: '% Remaining', budget: '83%', hours: '79%' },
-  ],
-  budgetOnshore: [
-     { label: 'Baseline', hours: '634' },
-     { label: 'Total (+CRs)', hours: '634' },
-     { label: 'Worked', hours: '273' },
-     { label: 'Remaining', hours: '361' },
-     { label: '% Remaining', hours: '56.94%' },
-  ],
-  budgetOffshore: [
-     { label: 'From PPW', budget: '$33,792', hours: '1,408' },
-     { label: 'From WO', budget: '$36,243', hours: '1,408' },
-     { label: 'Total (WO+CRs)', budget: '$36,243', hours: '1,408' },
-     { label: 'Invoiced / Worked', budget: '$4,065', hours: '152.25' },
-     { label: 'Remaining', budget: '$4,065', hours: '1,255.75' },
-     { label: '% Remaining', budget: '89%', hours: '89%' },
-  ],
+  budget: {
+    contractValue: '350000',
+    onshoreBudgetHours: '634',
+    offshoreBudgetHours: '1408',
+    onshoreSpentHours: '273',
+  },
   health: {
     notStarted: 49, inProgress: 18, complete: 32,
     green: 40, yellow: 4, red: 56,
@@ -106,17 +90,23 @@ const COLORS_STATUS = ['#0052cc', '#00B8D9', '#36B37E', '#dfe1e6']; // Blue, Cya
 const COLORS_HEALTH = ['#36B37E', '#FFAB00', '#FF5630', '#dfe1e6']; // Green, Yellow, Red
 const COLORS_RAID = ['#0052cc', '#6554C0', '#FFAB00', '#FF5630']; // Blue, Purple, Yellow, Red
 
-export default function ProjectOverview({ projectKey }: { projectKey: string }) {
+export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, epics = [] }: { projectKey: string, offshoreSpentHours?: number, epics?: any[] }) {
   const [data, setData] = useState<ProjectData>(DEFAULT_DATA);
   const [isOpen, setIsOpen] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [showEpicDetails, setShowEpicDetails] = useState(false);
   const STORAGE_KEY = `jira_dashboard_overview_${projectKey}`;
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       try {
-        setData(JSON.parse(saved));
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.budgetOverall)) {
+             setData({ ...DEFAULT_DATA, overview: parsed.overview || DEFAULT_DATA.overview });
+        } else {
+            setData(parsed);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -132,29 +122,118 @@ export default function ProjectOverview({ projectKey }: { projectKey: string }) 
     saveData({ ...data, overview: { ...data.overview, [field]: value } });
   };
 
-  const updateBudget = (section: 'budgetOverall' | 'budgetOnshore' | 'budgetOffshore', index: number, field: string, value: string) => {
-      const newSection = [...data[section]];
-      newSection[index] = { ...newSection[index], [field]: value };
-      saveData({ ...data, [section]: newSection });
+  const updateBudgetField = (field: keyof BudgetData, value: string) => {
+      saveData({ ...data, budget: { ...data.budget, [field]: value } });
   };
   
   const updateHealth = (field: keyof HealthStats, value: number) => {
       saveData({ ...data, health: { ...data.health, [field]: value } });
   };
 
+  // --- Calculations ---
+  // Budget
+  const onshoreBudget = parseFloat(data.budget.onshoreBudgetHours) || 0;
+  const offshoreBudget = parseFloat(data.budget.offshoreBudgetHours) || 0;
+  const totalBudget = onshoreBudget + offshoreBudget;
+  const onshoreSpent = parseFloat(data.budget.onshoreSpentHours) || 0;
+  const totalSpent = onshoreSpent + offshoreSpentHours;
+  const percentSpent = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
+  const percentOnshore = onshoreBudget > 0 ? (onshoreSpent / onshoreBudget) * 100 : 0;
+  const percentOffshore = offshoreBudget > 0 ? (offshoreSpentHours / offshoreBudget) * 100 : 0;
+
+  // Timeline & Progress
+  // Use manual dates or fallback to calculated from epics? 
+  // User asked to "Use data in the EPIC TIMELINE the generate insight".
+  // Let's rely on manual Start/End for the Project-level scope, but visualize progress within it.
+  
+  // % Complete from Epics
+  let percentComplete = 0;
+  let totalEpicIssues = 0;
+  let doneEpicIssues = 0;
+  
+  if (epics && epics.length > 0) {
+      epics.forEach(e => {
+          totalEpicIssues += (e.totalIssues || 0);
+          doneEpicIssues += (e.done || 0);
+      });
+      percentComplete = totalEpicIssues > 0 ? (doneEpicIssues / totalEpicIssues) * 100 : 0;
+  } else {
+      // Fallback to manual if no epics (or maybe 0)
+      percentComplete = parseFloat(data.overview.percentComplete) || 0;
+  }
+
+  // Timeline Bar Logic
+  const startDate = new Date(data.overview.planStartDate).getTime();
+  const endDate = new Date(data.overview.planEndDate).getTime();
+  const now = new Date().getTime();
+  const totalDuration = endDate - startDate;
+  const elapsed = now - startDate;
+  const timeProgress = totalDuration > 0 ? Math.min(Math.max(elapsed / totalDuration, 0), 1) * 100 : 0;
+
+
   // --- Render Helpers ---
 
-  const renderEditableInput = (value: string, onChange: (val: string) => void, width?: string) => {
+  const renderEditableInput = (value: string, onChange: (val: string) => void, width?: string, type: 'text'|'number' = 'text') => {
       if (isEditing) {
           return (
              <input 
+                type={type}
                 value={value} 
                 onChange={e => onChange(e.target.value)}
                 style={{ width: width || '100%', padding: '4px', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.9rem' }} 
              />
           );
       }
-      return <span>{value}</span>;
+      return <span>{type === 'number' ? value : value}</span>;
+  };
+  
+  const renderProgressBar = (value: number, total: number, color: string) => {
+      const pct = total > 0 ? Math.min((value / total) * 100, 100) : 0;
+      return (
+          <div style={{ width: '100%', background: '#dfe1e6', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 8 }}>
+              <div style={{ width: `${pct}%`, background: color, height: '100%' }} />
+          </div>
+      );
+  };
+
+  const renderTimelineBar = () => {
+      return (
+        <div style={{ marginTop: 25, marginBottom: 10 }}>
+            <div style={{ position: 'relative' }}>
+                {/* Today Label */}
+                 <div style={{ 
+                    position: 'absolute', 
+                    left: `${timeProgress}%`, 
+                    top: -24, 
+                    transform: 'translateX(-50%)', 
+                    fontSize: '0.75rem', 
+                    color: '#FF5630', 
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap'
+                }}>
+                    Today
+                </div>
+
+                {/* Bar */}
+                <div style={{ height: 8, background: '#dfe1e6', borderRadius: 4, position: 'relative', overflow: 'visible' }}>
+                    <div style={{ 
+                        position: 'absolute', left: 0, top: 0, height: '100%', width: `${timeProgress}%`, 
+                        background: '#0052cc', borderRadius: 4 
+                    }} />
+                    {/* Marker */}
+                    <div style={{ 
+                        position: 'absolute', left: `${timeProgress}%`, top: -4, bottom: -4, width: 2, background: '#FF5630', zIndex: 2
+                    }} />
+                </div>
+            </div>
+
+            {/* Date Labels */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: '0.75rem', color: '#666' }}>
+                <span>{data.overview.planStartDate}</span>
+                <span>{data.overview.planEndDate}</span>
+            </div>
+        </div>
+      );
   };
 
   const renderGauge = (chartData: any[], colors: string[], title: string, renderLegend: () => React.ReactNode) => (
@@ -179,7 +258,6 @@ export default function ProjectOverview({ projectKey }: { projectKey: string }) 
                     </Pie>
                 </PieChart>
             </ResponsiveContainer>
-            {/* Center Value or Label could go here */}
           </div>
           <div style={{ marginTop: '5px', fontSize: '0.75rem', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '8px' }}>
               {renderLegend()}
@@ -244,121 +322,188 @@ export default function ProjectOverview({ projectKey }: { projectKey: string }) 
         {isOpen && (
             <div style={{ padding: '20px' }}>
                 
-                {/* 1. Overview Grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '15px 10px', marginBottom: '30px' }}>
+                {/* 1. General & Health/Progress Split */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '30px' }}>
                     
-                    {/* First Row */}
-                    <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Schd. Health</div>
-                         {isEditing ? (
-                             <select 
-                                value={data.overview.schdHealth}
-                                onChange={e => updateOverview('schdHealth', e.target.value as any)}
-                                style={{ padding: 4 }}
-                             >
-                                 <option value="green">Green</option>
-                                 <option value="yellow">Yellow</option>
-                                 <option value="red">Red</option>
-                             </select>
-                         ) : (
-                             <div style={{ 
-                                 width: 16, height: 16, borderRadius: '50%', margin: '0 auto',
-                                 background: data.overview.schdHealth === 'green' ? '#36B37E' : data.overview.schdHealth === 'yellow' ? '#FFAB00' : '#FF5630' 
-                             }} />
-                         )}
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Complexity</div>
-                        {renderEditableInput(data.overview.complexity, v => updateOverview('complexity', v))}
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Project Type</div>
-                         {renderEditableInput(data.overview.projectType, v => updateOverview('projectType', v))}
-                    </div>
-                     <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Contract Start Date</div>
-                         {renderEditableInput(data.overview.contractStartDate, v => updateOverview('contractStartDate', v))}
-                    </div>
-                     <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Contract End Date</div>
-                         {renderEditableInput(data.overview.contractEndDate, v => updateOverview('contractEndDate', v))}
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Plan Start Date</div>
-                         {renderEditableInput(data.overview.planStartDate, v => updateOverview('planStartDate', v))}
+                    {/* General Section */}
+                    <div style={{ background: '#f9f9f9', padding: 15, borderRadius: 8 }}>
+                       <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8 }}>1. General</h3>
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                           <div>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Schd. Health</div>
+                               {isEditing ? (
+                                     <select 
+                                        value={data.overview.schdHealth}
+                                        onChange={e => updateOverview('schdHealth', e.target.value as any)}
+                                        style={{ padding: 4, width: '100%' }}
+                                     >
+                                         <option value="green">Green</option>
+                                         <option value="yellow">Yellow</option>
+                                         <option value="red">Red</option>
+                                     </select>
+                                 ) : (
+                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                         <div style={{ 
+                                             width: 12, height: 12, borderRadius: '50%',
+                                             background: data.overview.schdHealth === 'green' ? '#36B37E' : data.overview.schdHealth === 'yellow' ? '#FFAB00' : '#FF5630' 
+                                         }} />
+                                         <span style={{ textTransform: 'capitalize' }}>{data.overview.schdHealth}</span>
+                                     </div>
+                                 )}
+                           </div>
+                           <div>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Complexity</div>
+                               {renderEditableInput(data.overview.complexity, v => updateOverview('complexity', v))}
+                           </div>
+                           <div>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Project Type</div>
+                               {renderEditableInput(data.overview.projectType, v => updateOverview('projectType', v))}
+                           </div>
+                           <div>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Client Location</div>
+                               {renderEditableInput(data.overview.clientLocation, v => updateOverview('clientLocation', v))}
+                           </div>
+                           <div>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>BPW Target Margin</div>
+                               {renderEditableInput(data.overview.bpwTargetMargin, v => updateOverview('bpwTargetMargin', v))}
+                           </div>
+                       </div>
                     </div>
 
-                    {/* Second Row Mix */}
-                    <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Plan End Date</div>
-                         {renderEditableInput(data.overview.planEndDate, v => updateOverview('planEndDate', v))}
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>% Complete</div>
-                         {renderEditableInput(data.overview.percentComplete, v => updateOverview('percentComplete', v))}
-                    </div>
-                     <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Client Location</div>
-                         {renderEditableInput(data.overview.clientLocation, v => updateOverview('clientLocation', v))}
-                    </div>
-                    <div style={{ textAlign: 'center', gridColumn: 'span 1' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Current Phase</div>
-                         {renderEditableInput(data.overview.currentPhase, v => updateOverview('currentPhase', v))}
-                    </div>
-                    <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Next Gate Review</div>
-                         {renderEditableInput(data.overview.nextGateReview, v => updateOverview('nextGateReview', v))}
-                    </div>
-                    <div>{/* Spacer */}</div>
+                    {/* Health and Progress Section */}
+                    <div style={{ background: '#f9f9f9', padding: 15, borderRadius: 8 }}>
+                       <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8 }}>2. Health and Progress</h3>
+                       
+                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                           <div style={{ width: '48%' }}>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Start Date</div>
+                               {renderEditableInput(data.overview.planStartDate, v => updateOverview('planStartDate', v))}
+                           </div>
+                           <div style={{ width: '48%' }}>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>End Date</div>
+                               {renderEditableInput(data.overview.planEndDate, v => updateOverview('planEndDate', v))}
+                           </div>
+                       </div>
 
-                    {/* Third Row Margins */}
-                     <div style={{ textAlign: 'center', gridColumn: '5' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>BPW Target Margin</div>
-                         {renderEditableInput(data.overview.bpwTargetMargin, v => updateOverview('bpwTargetMargin', v))}
+                       <div style={{ marginBottom: 15 }}>
+                           <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Timeline Progress</div>
+                           {renderTimelineBar()}
+                       </div>
+
+                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                           <div>
+                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84' }}>% Complete (Issues)</div>
+                                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#0052cc' }}>{percentComplete.toFixed(0)}%</div>
+                           </div>
+                           <div>
+                                <button 
+                                    onClick={() => setShowEpicDetails(!showEpicDetails)}
+                                    style={{ padding: '4px 10px', fontSize: '0.8rem', cursor: 'pointer', background: '#e9e9e9', border: 'none', borderRadius: 4 }}
+                                >
+                                    {showEpicDetails ? 'Hide Details' : 'Drill Down'}
+                                </button>
+                           </div>
+                       </div>
+                       
+                       {/* Drill Down Details */}
+                       {showEpicDetails && epics && epics.length > 0 && (
+                           <div style={{ marginTop: 15, maxHeight: 200, overflowY: 'auto', border: '1px solid #eee', borderRadius: 4, padding: 5, background: 'white' }}>
+                               <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                                   <thead>
+                                       <tr style={{ textAlign: 'left', background: '#f4f5f7' }}>
+                                           <th style={{ padding: 4 }}>Epic</th>
+                                           <th style={{ padding: 4 }}>Status</th>
+                                           <th style={{ padding: 4 }}>Progress</th>
+                                       </tr>
+                                   </thead>
+                                   <tbody>
+                                       {epics.map(e => {
+                                           const total = e.totalIssues || 1;
+                                           const done = e.done || 0;
+                                           const pct = Math.round((done / total) * 100);
+                                           return (
+                                               <tr key={e.key} style={{ borderBottom: '1px solid #eee' }}>
+                                                   <td style={{ padding: 4 }}>{e.summary}</td>
+                                                   <td style={{ padding: 4 }}>{e.status}</td>
+                                                   <td style={{ padding: 4 }}>
+                                                       <div style={{ width: '100%', background: '#dfe1e6', height: 4, borderRadius: 2 }}>
+                                                           <div style={{ width: `${pct}%`, background: pct === 100 ? '#36B37E' : '#0052cc', height: '100%' }} />
+                                                       </div>
+                                                       <div style={{fontSize: '0.65em', color: '#666'}}>{pct}%</div>
+                                                   </td>
+                                               </tr>
+                                           )
+                                       })}
+                                   </tbody>
+                               </table>
+                           </div>
+                       )}
                     </div>
-                     <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: 4 }}>Current Margin</div>
-                         {renderEditableInput(data.overview.currentMargin, v => updateOverview('currentMargin', v))}
-                    </div>
+
                 </div>
 
                 <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />
 
-                {/* 2. Budget & Hours */}
+                {/* 3. Budget & Hours */}
                 <div style={{ marginBottom: '30px' }}>
                      <h3 style={{ textAlign: 'center', fontSize: '1.2rem', color: '#172b4d', marginBottom: '20px' }}>Overall Budget & Hours (Onshore & Offshore)</h3>
                      
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, fontSize: '0.9rem', textAlign: 'center', marginBottom: 20 }}>
-                        {data.budgetOverall.map((row, i) => (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                <strong style={{ fontSize: '0.8rem', color: '#42526e' }}>{row.label}</strong>
-                                {renderEditableInput(row.budget || '', v => updateBudget('budgetOverall', i, 'budget', v))}
-                                {isEditing && <span style={{fontSize: '0.7em'}}>Hours:</span>}
-                                {renderEditableInput(row.hours || '', v => updateBudget('budgetOverall', i, 'hours', v))}
-                            </div>
-                        ))}
-                     </div>
+                     {/* Summary Grid */}
+                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '20px', textAlign: 'center' }}>
+                        
+                        {/* Contract Value */}
+                        <div style={{ background: '#f4f5f7', padding: 15, borderRadius: 8 }}>
+                             <div style={{ fontSize: '0.9rem', color: '#5e6c84', marginBottom: 5 }}>Total Contract Value</div>
+                             <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#0747A6' }}>
+                                 ${renderEditableInput(data.budget.contractValue, v => updateBudgetField('contractValue', v))}
+                             </div>
+                        </div>
 
-                     <h3 style={{ textAlign: 'center', fontSize: '1.1rem', color: '#172b4d', marginBottom: '20px' }}>Onshore Hours</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 10, fontSize: '0.9rem', textAlign: 'center', marginBottom: 20 }}>
-                        {data.budgetOnshore.map((row, i) => (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                <strong style={{ fontSize: '0.8rem', color: '#42526e' }}>{row.label}</strong>
-                                {renderEditableInput(row.hours || '', v => updateBudget('budgetOnshore', i, 'hours', v))}
-                            </div>
-                        ))}
-                     </div>
-                     
-                     <h3 style={{ textAlign: 'center', fontSize: '1.1rem', color: '#172b4d', marginBottom: '20px' }}>Offshore Budget & Hours</h3>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 10, fontSize: '0.9rem', textAlign: 'center' }}>
-                        {data.budgetOffshore.map((row, i) => (
-                            <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                <strong style={{ fontSize: '0.8rem', color: '#42526e' }}>{row.label}</strong>
-                                {renderEditableInput(row.budget || '', v => updateBudget('budgetOffshore', i, 'budget', v))}
-                                {isEditing && <span style={{fontSize: '0.7em'}}>Hours:</span>}
-                                {renderEditableInput(row.hours || '', v => updateBudget('budgetOffshore', i, 'hours', v))}
-                            </div>
-                        ))}
+                        {/* Onshore */}
+                        <div style={{ background: '#f4f5f7', padding: 15, borderRadius: 8 }}>
+                             <div style={{ fontSize: '0.9rem', color: '#5e6c84', marginBottom: 5 }}>Onshore Hours</div>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 5 }}>
+                                 <span>Budgeted:</span>
+                                 <strong>{renderEditableInput(data.budget.onshoreBudgetHours, v => updateBudgetField('onshoreBudgetHours', v))}</strong>
+                             </div>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                 <span>Spent:</span>
+                                 <strong>{renderEditableInput(data.budget.onshoreSpentHours, v => updateBudgetField('onshoreSpentHours', v))}</strong>
+                             </div>
+                             {renderProgressBar(onshoreSpent, onshoreBudget, '#0052cc')}
+                             <div style={{ fontSize: '0.75rem', textAlign: 'right', marginTop: 4 }}>{percentOnshore.toFixed(1)}%</div>
+                        </div>
+
+                        {/* Offshore */}
+                        <div style={{ background: '#f4f5f7', padding: 15, borderRadius: 8 }}>
+                             <div style={{ fontSize: '0.9rem', color: '#5e6c84', marginBottom: 5 }}>Offshore Hours</div>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 5 }}>
+                                 <span>Budgeted:</span>
+                                 <strong>{renderEditableInput(data.budget.offshoreBudgetHours, v => updateBudgetField('offshoreBudgetHours', v))}</strong>
+                             </div>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                 <span>Spent:</span>
+                                 <strong>{offshoreSpentHours.toFixed(1)}</strong>
+                             </div>
+                             {renderProgressBar(offshoreSpentHours, offshoreBudget, '#36B37E')}
+                             <div style={{ fontSize: '0.75rem', textAlign: 'right', marginTop: 4 }}>{percentOffshore.toFixed(1)}%</div>
+                        </div>
+
+                        {/* Total Hours */}
+                        <div style={{ background: '#f4f5f7', padding: 15, borderRadius: 8 }}>
+                             <div style={{ fontSize: '0.9rem', color: '#5e6c84', marginBottom: 5 }}>Total Hours</div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem', marginBottom: 5 }}>
+                                 <span>Budgeted:</span>
+                                 <strong>{totalBudget.toFixed(1)}</strong>
+                             </div>
+                             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.85rem' }}>
+                                 <span>Spent:</span>
+                                 <strong>{totalSpent.toFixed(1)}</strong>
+                             </div>
+                             {renderProgressBar(totalSpent, totalBudget, '#FFAB00')}
+                             <div style={{ fontSize: '0.75rem', textAlign: 'right', marginTop: 4 }}>{percentSpent.toFixed(1)}%</div>
+                        </div>
+
                      </div>
                 </div>
 

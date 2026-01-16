@@ -163,3 +163,32 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
     return { data: {}, baseUrl: '' };
   }
 }
+// ... existing code ...
+
+export async function getProjectTotalHours(projectKey: string): Promise<number> {
+  try {
+    const jira = await getJiraClient();
+    // Search for all issues in project with worklogs
+    // Note: This matches all time, not limited by date range
+    const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
+      jql: `project = "${projectKey}" AND worklogDate is not EMPTY`,
+      maxResults: 1000, 
+      fields: ['worklog']
+    });
+    
+    let totalSeconds = 0;
+    const issues = search.issues || [];
+    
+    for (const issue of issues) {
+       const worklogs = issue.fields.worklog?.worklogs || [];
+       for (const log of worklogs) {
+           totalSeconds += (log.timeSpentSeconds || 0);
+       }
+    }
+    
+    return totalSeconds / 3600; // Return in Hours
+  } catch (e) {
+    console.error('Failed to get total hours', e);
+    return 0;
+  }
+}
