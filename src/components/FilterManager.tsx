@@ -71,11 +71,13 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
 
   // Fetch insights when filter changes or panel opens
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && currentFilterJql) {
       startInsightsTransition(async () => {
         const result = await getFilterInsights(currentFilterJql, projectKey);
         setInsights(result);
       });
+    } else if (!currentFilterJql) {
+      setInsights(null); // Clear insights when no filter is selected
     }
   }, [isOpen, currentFilterJql, projectKey]);
 
@@ -172,22 +174,6 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
         <div style={{ padding: '20px' }}>
           {/* Filter Chips */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
-            <div 
-              onClick={clearFilter}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 20,
-                border: '1px solid #dfe1e6',
-                background: currentFilterJql === '' ? '#42526e' : 'white',
-                color: currentFilterJql === '' ? 'white' : '#42526e',
-                cursor: 'pointer',
-                fontSize: '0.9rem',
-                userSelect: 'none'
-              }}
-            >
-              All Issues
-            </div>
-
             {isLoadingFilters && <span style={{ color: '#666', fontSize: '0.85rem' }}>Loading Jira filters...</span>}
 
             {allFilters.map(filter => (
@@ -238,8 +224,8 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
             </button>
           </div>
 
-          {/* Active Filter Info (Description & JQL) */}
-          {displayInfo && (displayInfo.description || displayInfo.jql) && (
+          {/* Active Filter Info (Description & JQL) - Only show when a filter is selected */}
+          {displayInfo && currentFilterJql && (displayInfo.description || displayInfo.jql) && (
             <div style={{ 
               marginBottom: '20px', 
               padding: '12px 16px', 
@@ -313,7 +299,8 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
             </div>
           )}
 
-          {/* Filter Insights */}
+          {/* Filter Insights - Only show when a filter is selected */}
+          {currentFilterJql && (
           <div style={{ borderTop: '1px solid #dfe1e6', paddingTop: '20px' }}>
             <h4 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d' }}>
               Filter Insights 
@@ -486,6 +473,7 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
               </div>
             )}
           </div>
+          )}
         </div>
       )}
     </div>

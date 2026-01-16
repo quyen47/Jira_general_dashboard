@@ -36,9 +36,7 @@ export async function getJiraFilters(projectKey?: string): Promise<JiraFilter[]>
         return jql.includes(`project = "${keyLower}"`) ||
                jql.includes(`project = '${keyLower}'`) ||
                jql.includes(`project = ${keyLower}`) ||
-               jql.includes(`project in (`) && jql.includes(keyLower) ||
-               // Also include filters that don't specify a project (global filters)
-               !jql.includes('project');
+               jql.includes(`project in (`) && jql.includes(keyLower);
       });
     }
     
@@ -83,20 +81,19 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
     // Build effective JQL
     const effectiveJql = jql ? `project = "${projectKey}" AND (${jql.replace(/ORDER\s+BY\s+.*$/i, '').trim()})` : `project = "${projectKey}"`;
     
-    const [search, count] = await Promise.all([
-      jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
-        jql: `${effectiveJql} ORDER BY updated DESC`,
-        maxResults: 50,
-        fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated']
-      }),
-      jira.issueSearch.countIssues({ jql: effectiveJql })
-    ]);
+    // Fetch up to 100 issues for breakdown and display (to ensure accuracy)
+    const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
+      jql: `${effectiveJql} ORDER BY updated DESC`,
+      maxResults: 100,
+      fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated']
+    });
     
     const rawIssues = search.issues || [];
     const byStatus: Record<string, number> = {};
     const byPriority: Record<string, number> = {};
     const statusPriorityMap: Record<string, { color: string; priorities: Record<string, number> }> = {};
     
+    // Build breakdown and map issues
     const issues: FilterIssue[] = rawIssues.map((issue: any) => {
       const status = issue.fields.status?.name || 'Unknown';
       const statusColor = issue.fields.status?.statusCategory?.colorName || 'default';
@@ -105,7 +102,6 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
       byStatus[status] = (byStatus[status] || 0) + 1;
       byPriority[priority] = (byPriority[priority] || 0) + 1;
       
-      // Build status-priority breakdown
       if (!statusPriorityMap[status]) {
         statusPriorityMap[status] = { color: statusColor, priorities: {} };
       }
@@ -135,7 +131,7 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
     })).sort((a, b) => b.total - a.total);
     
     return {
-      total: (count as any).total || issues.length,
+      total: issues.length,
       byStatus: Object.entries(byStatus).map(([name, value]) => ({ name, value })),
       byPriority: Object.entries(byPriority).map(([name, value]) => ({ name, value })),
       byStatusPriority,
@@ -146,3 +142,40 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
     return { total: 0, byStatus: [], byPriority: [], byStatusPriority: [], issues: [] };
   }
 }
+
+export async function loadMoreFilterIssues(
+  jql: string, 
+  projectKey: string, 
+  startAt: number,
+  maxResults: number = 50
+): Promise<FilterIssue[]> {
+  try {
+    const jira = await getJiraClient();
+    const effectiveJql = jql ? `project = "${projectKey}" AND (${jql.replace(/ORDER\s+BY\s+.*$/i, '').trim()})` : `project = "${projectKey}"`;
+    
+    const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
+      jql: `${effectiveJql} ORDER BY updated DESC`,
+      maxResults,
+      fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated']
+    });
+    
+    const rawIssues = search.issues || [];
+    return rawIssues.map((issue: any) => ({
+      key: issue.key,
+      summary: issue.fields.summary,
+      issueType: issue.fields.issuetype?.name || 'Unknown',
+      issueTypeIcon: issue.fields.issuetype?.iconUrl,
+      status: issue.fields.status?.name || 'Unknown',
+      statusColor: issue.fields.status?.statusCategory?.colorName || 'default',
+      priority: issue.fields.priority?.name || 'None',
+      priorityIcon: issue.fields.priority?.iconUrl,
+      assignee: issue.fields.assignee?.displayName,
+      assigneeAvatar: issue.fields.assignee?.avatarUrls?.['24x24'],
+      updated: issue.fields.updated
+    }));
+  } catch (e) {
+    console.error('Failed to load more issues:', e);
+    return [];
+  }
+}
+
