@@ -31,8 +31,18 @@ function getDayLabel(isoString: string) {
     return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-export default function RecentActivity({ projectKey, baseUrl = '' }: { projectKey: string, baseUrl?: string }) {
-    const [isOpen, setIsOpen] = useState(false); // Start closed to save resources
+export default function RecentActivity({ 
+    projectKey, 
+    baseUrl = '', 
+    forcedUsername, 
+    forcedIssueKey 
+}: { 
+    projectKey: string, 
+    baseUrl?: string,
+    forcedUsername?: string,
+    forcedIssueKey?: string
+}) {
+    const [isOpen, setIsOpen] = useState(!!(forcedUsername || forcedIssueKey)); // Auto-open if forced
     const [activities, setActivities] = useState<ActivityItem[]>([]);
     const [projectUsers, setProjectUsers] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
@@ -41,20 +51,17 @@ export default function RecentActivity({ projectKey, baseUrl = '' }: { projectKe
     // State separation: 
     // searchQuery drives the input box and avatar list filtering.
     // activeUser drives the actual API fetch and is the "selected" state.
-    const [searchQuery, setSearchQuery] = useState('');
-    const [activeUser, setActiveUser] = useState('');
+    const [searchQuery, setSearchQuery] = useState(forcedUsername || '');
+    const [activeUser, setActiveUser] = useState(forcedUsername || '');
     const [hasLoaded, setHasLoaded] = useState(false);
 
     const loadData = async (userFilter?: string) => {
         setLoading(true);
         try {
             // If userFilter is passed, use it. Otherwise use activeUser (which might be empty for 'All')
-            // But here we want to load based on the ARGUMENT if provided (e.g. clicking a user)
-            // or fall back to current state if refreshing? 
-            // Better: update state first, then load? 
-            // The caller handles state updates. here we just fetch.
             const targetUser = userFilter !== undefined ? userFilter : activeUser;
-            const data = await getProjectRecentActivity(projectKey, targetUser);
+            // Pass forcedIssueKey if present
+            const data = await getProjectRecentActivity(projectKey, targetUser, forcedIssueKey);
             setActivities(data);
             setHasLoaded(true);
         } catch (e) {
@@ -81,7 +88,9 @@ export default function RecentActivity({ projectKey, baseUrl = '' }: { projectKe
     useEffect(() => {
         if (isOpen && !hasLoaded && !loading) {
             loadData(activeUser);
-            loadUsers();
+            if (!forcedUsername) {
+                loadUsers();
+            }
         }
     }, [isOpen]);
 
@@ -126,86 +135,97 @@ export default function RecentActivity({ projectKey, baseUrl = '' }: { projectKe
         });
     }
 
+    const isForcedMode = !!(forcedUsername || forcedIssueKey);
+
     return (
-        <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+        <div style={{ background: 'white', borderRadius: isForcedMode ? 0 : 8, boxShadow: isForcedMode ? 'none' : '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: isForcedMode ? 0 : '2rem' }}>
+            {!isForcedMode && (
             <div 
                 onClick={() => setIsOpen(!isOpen)}
                 style={{ 
-                    padding: '12px 16px', 
+                    background: '#0747A6', // Match FilterManager style
+                    color: 'white',
+                    padding: '10px 16px', 
                     cursor: 'pointer',
-                    borderBottom: isOpen ? '1px solid #dfe1e6' : 'none',
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    fontWeight: 600,
+                    letterSpacing: '1px'
                 }}
             >
-                <h3 style={{ margin: 0, fontSize: '1rem', color: '#172b4d' }}>Recent Activity</h3>
-                <span style={{ color: '#666', fontSize: '0.8rem' }}>{isOpen ? '▼' : '▶'}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <span style={{ textTransform: 'uppercase' }}>Recent Activity</span>
+                </div>
+                <span style={{ fontSize: '0.8rem' }}>{isOpen ? '▼' : '▶'}</span>
             </div>
+            )}
 
             {isOpen && (
                 <div style={{ padding: '16px' }}>
                     
-                    {/* User Filter Row */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 15, marginBottom: 20 }}>
-                        {/* Text Search */}
-                        <form onSubmit={handleFilterSubmit} style={{ display: 'flex', gap: 10, flex: '0 0 250px' }}>
-                            <input 
-                                type="text" 
-                                placeholder="Search user..." 
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                style={{ flex: 1, padding: '6px 10px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: '0.9rem' }}
-                            />
-                            <button 
-                                type="submit" 
-                                disabled={loading}
-                                style={{ 
-                                    padding: '6px 12px', 
-                                    background: '#f4f5f7', 
-                                    border: '1px solid #dfe1e6', 
-                                    borderRadius: 4, 
-                                    cursor: loading ? 'default' : 'pointer',
-                                    color: loading ? '#aaa' : '#172b4d',
-                                    fontWeight: 600
-                                }}
-                            >
-                                Filter
-                            </button>
-                        </form>
+                    {/* User Filter Row - Hide if Forced Mode */}
+                    {!isForcedMode && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 15, marginBottom: 20 }}>
+                            {/* Text Search */}
+                            <form onSubmit={handleFilterSubmit} style={{ display: 'flex', gap: 10, flex: '0 0 250px' }}>
+                                <input 
+                                    type="text" 
+                                    placeholder="Search user..." 
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    style={{ flex: 1, padding: '6px 10px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: '0.9rem' }}
+                                />
+                                <button 
+                                    type="submit" 
+                                    disabled={loading}
+                                    style={{ 
+                                        padding: '6px 12px', 
+                                        background: '#f4f5f7', 
+                                        border: '1px solid #dfe1e6', 
+                                        borderRadius: 4, 
+                                        cursor: loading ? 'default' : 'pointer',
+                                        color: loading ? '#aaa' : '#172b4d',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Filter
+                                </button>
+                            </form>
 
-                        {/* Avatar List (Dynamic) */}
-                        <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, flex: 1 }}>
-                            {filteredUsers.map(u => {
-                                const isSelected = activeUser === u.displayName;
-                                return (
-                                    <div 
-                                        key={u.accountId} 
-                                        onClick={() => handleUserClick(u.displayName)}
-                                        title={u.displayName}
-                                        style={{ 
-                                            cursor: 'pointer', 
-                                            opacity: isSelected ? 1 : (activeUser ? 0.3 : 1), // Fade others if one selected
-                                            border: isSelected ? '2px solid #0052cc' : '2px solid transparent',
-                                            borderRadius: '50%',
-                                            padding: 1,
-                                            flexShrink: 0
-                                        }}
-                                    >
-                                        <img 
-                                            src={u.avatarUrl} 
-                                            alt={u.displayName} 
-                                            style={{ width: 32, height: 32, borderRadius: '50%', display: 'block' }} 
-                                        />
-                                    </div>
-                                )
-                            })}
+                            {/* Avatar List (Dynamic) */}
+                            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, flex: 1 }}>
+                                {filteredUsers.map(u => {
+                                    const isSelected = activeUser === u.displayName;
+                                    return (
+                                        <div 
+                                            key={u.accountId} 
+                                            onClick={() => handleUserClick(u.displayName)}
+                                            title={u.displayName}
+                                            style={{ 
+                                                cursor: 'pointer', 
+                                                opacity: isSelected ? 1 : (activeUser ? 0.3 : 1), // Fade others if one selected
+                                                border: isSelected ? '2px solid #0052cc' : '2px solid transparent',
+                                                borderRadius: '50%',
+                                                padding: 1,
+                                                flexShrink: 0
+                                            }}
+                                        >
+                                            <img 
+                                                src={u.avatarUrl} 
+                                                alt={u.displayName} 
+                                                style={{ width: 32, height: 32, borderRadius: '50%', display: 'block' }} 
+                                            />
+                                        </div>
+                                    )
+                                })}
+                            </div>
                         </div>
-                    </div>
+                    )}
 
                     {loading && <div style={{ textAlign: 'center', color: '#666', padding: 20 }}>Loading activity...</div>}
 
                     {!loading && activities.length === 0 && hasLoaded && (
                         <div style={{ textAlign: 'center', color: '#666', padding: 20, fontStyle: 'italic' }}>
-                            No recent activity found {activeUser ? `for user "${activeUser}"` : ''} in the last 14 days.
+                            No recent activity found {activeUser ? `for user "${activeUser}"` : ''} {forcedIssueKey ? `on issue ${forcedIssueKey}` : ''} in the last 14 days.
                         </div>
                     )}
 
@@ -228,8 +248,8 @@ export default function RecentActivity({ projectKey, baseUrl = '' }: { projectKe
                                         {day}
                                     </h4>
 
-                                    {/* Conditional Grouping by Ticket if Active User is selected */}
-                                    {activeUser ? (
+                                    {/* Conditional Grouping by Ticket if Active User is selected OR Forced Mode */}
+                                    {activeUser || isForcedMode ? (
                                         <ActivityByTicketGroup 
                                             activities={dayActivities} 
                                             baseUrl={baseUrl} 

@@ -23,13 +23,17 @@ export interface ActivityItem {
   };
 }
 
-export async function getProjectRecentActivity(projectKey: string, username?: string): Promise<ActivityItem[]> {
+export async function getProjectRecentActivity(projectKey: string, username?: string, issueKey?: string): Promise<ActivityItem[]> {
   const jira = await getJiraClient();
   
   // Look back 14 days for activity
   // If username provided, filter for it
   let jql = `project = "${projectKey}" AND updated >= -14d`;
   
+  if (issueKey && issueKey.trim()) {
+      jql += ` AND key = "${issueKey}"`;
+  }
+
   if (username && username.trim()) {
       // Heuristic to find activity related to a user. 
       // Note: 'actor' is not standard JQL. We check common fields.

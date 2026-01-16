@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { getProjectWorklogs, TimesheetData, WorklogEntry } from '@/actions/timesheet';
+import RecentActivity from './RecentActivity';
 
 export default function Timesheet({ projectKey }: { projectKey: string }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -14,6 +15,12 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
     authorName: string;
     entries: WorklogEntry[];
   } | null>(null);
+  const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
+
+  // Reset drill-down when modal closes or changes
+  useEffect(() => {
+    setExpandedActivityId(null);
+  }, [selectedCell]);
   
   // Export State
   const [showExportModal, setShowExportModal] = useState(false);
@@ -431,16 +438,37 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
                 {selectedCell.entries.map(entry => (
                   <div key={entry.id} style={{ background: 'white', padding: '12px', borderRadius: 4, border: '1px solid #dfe1e6' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                      <a 
-                        href={`${baseUrl}/browse/${entry.issueKey}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ fontWeight: 600, color: '#0052cc', textDecoration: 'none', cursor: 'pointer' }}
-                        onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
-                        onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
-                      >
-                        {entry.issueKey}
-                      </a>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <a 
+                          href={`${baseUrl}/browse/${entry.issueKey}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontWeight: 600, color: '#0052cc', textDecoration: 'none', cursor: 'pointer' }}
+                          onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                          onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                        >
+                          {entry.issueKey}
+                        </a>
+                        <button
+                            onClick={() => {
+                                // Toggle activity view for this entry
+                                // Using a new state for expanded activity
+                                setExpandedActivityId(expandedActivityId === entry.id ? null : entry.id);
+                            }}
+                            style={{
+                                fontSize: '0.75rem',
+                                color: '#505f79',
+                                background: '#f4f5f7',
+                                border: 'none',
+                                padding: '2px 6px',
+                                borderRadius: 3,
+                                cursor: 'pointer',
+                                display: 'flex', alignItems: 'center', gap: 4
+                            }}
+                        >
+                            History {expandedActivityId === entry.id ? '▲' : '▼'}
+                        </button>
+                      </div>
                       <span style={{ fontWeight: 600, color: '#00875a' }}>{entry.timeSpent}</span>
                     </div>
                     <div style={{ fontSize: '0.9rem', color: '#172b4d', marginBottom: '4px' }}>
@@ -450,6 +478,18 @@ export default function Timesheet({ projectKey }: { projectKey: string }) {
                       <div style={{ fontSize: '0.85rem', color: '#5e6c84', fontStyle: 'italic', borderTop: '1px solid #eee', marginTop: '6px', paddingTop: '6px' }}>
                         "{entry.comment}"
                       </div>
+                    )}
+                    
+                    {/* Inline Activity Drill-down */}
+                    {expandedActivityId === entry.id && (
+                        <div style={{ marginTop: 10, border: '1px solid #ebecf0', borderRadius: 4 }}>
+                            <RecentActivity 
+                                projectKey={projectKey} 
+                                baseUrl={baseUrl} 
+                                forcedUsername={selectedCell.authorName} 
+                                forcedIssueKey={entry.issueKey} 
+                            />
+                        </div>
                     )}
                   </div>
                 ))}
