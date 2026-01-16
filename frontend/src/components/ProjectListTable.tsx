@@ -80,8 +80,6 @@ export default function ProjectTable({ projects }: { projects: Project[] }) {
             <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'center' }}>Trend</th>
             <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'center' }}>Overall Status</th>
             <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'center' }}>Schedule Status</th>
-            <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'center' }}>Scope Status</th>
-            <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'center' }}>Quality Status</th>
             <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'center' }}>Resources Status</th>
             <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'center' }}>Budget Status</th>
             <th style={{ padding: '12px', borderBottom: '2px solid #dfe1e6', textAlign: 'left' }}>DH Project Manager</th>
@@ -119,8 +117,7 @@ export default function ProjectTable({ projects }: { projects: Project[] }) {
                 <td style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>{renderStatusDot(status)}</td>
                 <td style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>{renderStatusDot(status)}</td>
                 <td style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>{renderStatusDot(status)}</td>
-                <td style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>{renderStatusDot(status)}</td>
-                <td style={{ textAlign: 'center', borderBottom: '1px solid #eee' }}>{renderStatusDot(status)}</td>
+
                 <td style={{ borderBottom: '1px solid #eee', paddingLeft: '12px' }}>N/A</td>
                 <td style={{ borderBottom: '1px solid #eee', paddingLeft: '12px' }}>{project.lead?.displayName || 'Unknown'}</td>
                 <td style={{ borderBottom: '1px solid #eee', paddingLeft: '12px' }}>N/A</td>

@@ -150,14 +150,9 @@ export default function PortfolioSummary({ projects }: { projects: Project[] }) 
       <div style={{ background: 'white', padding: '20px', borderRadius: '0 0 4px 4px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
         
         {/* Row 1 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px', marginBottom: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
            {renderDonut('All Projects by Phase', data.phases, COLORS_PHASE)}
            {renderDonut('All Projects by Health', data.health, COLORS_HEALTH, true)}
-           {renderDonut('All Projects by Margin', data.margins, COLORS_MARGIN, true)}
-        </div>
-
-        {/* Row 2 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
            {renderDonut('All Projects by Contract Value', { 
                '< $100K': data.values.small, 
                '$100K-$350K': data.values.medium, 
@@ -165,11 +160,6 @@ export default function PortfolioSummary({ projects }: { projects: Project[] }) 
                '$1M-$5M': data.values.enterprise,
                '> $5M': data.values.mega
            }, ['#dfe1e6', '#eae6ff', '#bfb3ff', '#8777d9', '#5243aa'], true)}
-           
-           {renderDonut('All Projects by Complexity', data.complexity, ['#b3d4ff', '#4c9aff', '#0747a6'], true)}
-           
-           {/* Dynamic colors for Locations */}
-           {renderDonut('All Projects by Client Location', data.locations, ['#FF991F', '#FFC400', '#00B8D9', '#0052CC', '#6554C0', '#36B37E'], true)}
         </div>
 
       </div>
