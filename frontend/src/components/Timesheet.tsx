@@ -4,8 +4,8 @@ import { useState, useEffect, useTransition } from 'react';
 import { getProjectWorklogs, TimesheetData, WorklogEntry } from '@/actions/timesheet';
 import RecentActivity from './RecentActivity';
 
-export default function Timesheet({ projectKey }: { projectKey: string }) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function Timesheet({ projectKey, initialOpen = false }: { projectKey: string, initialOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(initialOpen);
   const [rangeType, setRangeType] = useState('7'); // '7', '14', '30', 'current_month', 'prev_month', 'custom'
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');

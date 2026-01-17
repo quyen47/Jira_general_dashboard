@@ -115,7 +115,7 @@ button[type="submit"]:disabled {
 
 /* Dashboard Styles */
 .dashboard-container {
-  max-width: 1200px;
+  max-width: 1450px;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -201,4 +201,9 @@ button[type="submit"]:disabled {
   border-top: 1px solid var(--border);
   font-size: 0.9rem;
   color: var(--text-secondary);
+}
+
+/* Hide Next.js Dev Indicator */
+nextjs-portal, #__next-build-watcher {
+  display: none !important;
 }

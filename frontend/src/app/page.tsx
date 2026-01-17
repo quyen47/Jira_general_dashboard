@@ -11,9 +11,17 @@ export default async function Home() {
   
   try {
     const jira = await getJiraClient();
+    console.log("[Projects Overview] Fetching project list...");
+    console.log("[Projects Overview] API Call: jira.projects.searchProjects({})");
+    
     // Fetch all projects
     const result: any = await jira.projects.searchProjects({});
     projects = Array.isArray(result) ? result : (result.values || []);
+    
+    console.log(`[Projects Overview] Received ${projects.length} projects.`);
+    if (projects.length > 0) {
+        console.log("[Projects Overview] Keys:", projects.map((p:any) => p.key).join(', '));
+    }
   } catch (e) {
     // If not authorized or error, redirect to login
     redirect('/login');

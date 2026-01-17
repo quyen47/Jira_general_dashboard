@@ -164,11 +164,11 @@ export default async function ProjectPage({
           <ProjectOverview projectKey={key} offshoreSpentHours={totalHours} epics={epicList} />
       </div>
 
-      <RecentActivity projectKey={key} baseUrl={baseUrl} />
-
-      <Timesheet projectKey={key} />
+      <Timesheet projectKey={key} initialOpen={true} />
 
       <FilterManager projectKey={key} />
+
+      <RecentActivity projectKey={key} baseUrl={baseUrl} />
 
 
 

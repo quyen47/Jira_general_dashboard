@@ -19,7 +19,7 @@ export default function LoginPage() {
   return (
     <div className="login-container">
       <div className="login-card">
-        <h1>Jira Dashboard</h1>
+        <h1>Beyond Jira</h1>
         <p>Enter your credentials to connect</p>
         
         <form action={formAction} className="login-form">
