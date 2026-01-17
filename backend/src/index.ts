@@ -232,16 +232,12 @@ app.post('/api/projects/:key/overview', async (req, res) => {
             schdHealth: ov.schdHealth || 'yellow',
             complexity: ov.complexity || 'Medium',
             projectType: ov.projectType,
-            contractStartDate: ov.contractStartDate,
-            contractEndDate: ov.contractEndDate,
             planStartDate: ov.planStartDate,
             planEndDate: ov.planEndDate,
             percentComplete: ov.percentComplete,
             clientLocation: ov.clientLocation,
             currentPhase: ov.currentPhase,
-            nextGateReview: ov.nextGateReview,
             bpwTargetMargin: ov.bpwTargetMargin,
-            currentMargin: ov.currentMargin,
             budget: data.budget || {},
             health: data.health || {}
         };

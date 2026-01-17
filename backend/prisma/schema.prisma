@@ -28,16 +28,12 @@ type ProjectOverview {
   schdHealth      String   @default("yellow")
   complexity      String   @default("Medium")
   projectType     String?
-  contractStartDate String?
-  contractEndDate   String?
   planStartDate     String?
   planEndDate       String?
   percentComplete   String?
   clientLocation    String?
   currentPhase      String?
-  nextGateReview    String?
   bpwTargetMargin   String?
-  currentMargin     String?
 
   // Data Blobs
   budget          Json?

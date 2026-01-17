@@ -9,16 +9,12 @@ interface OverviewData {
     schdHealth: 'green' | 'yellow' | 'red';
     complexity: string;
     projectType: string;
-    contractStartDate: string;
-    contractEndDate: string;
     planStartDate: string;
     planEndDate: string;
     percentComplete: string;
     clientLocation: string;
     currentPhase: string;
-    nextGateReview: string;
     bpwTargetMargin: string;
-    currentMargin: string;
 }
 
 
@@ -57,33 +53,30 @@ interface ProjectData {
 }
 
 // --- Defaults ---
+// --- Defaults ---
 const DEFAULT_DATA: ProjectData = {
   overview: {
     schdHealth: 'yellow',
-    complexity: 'Medium',
-    projectType: 'T&M',
-    contractStartDate: '09/08/25',
-    contractEndDate: '01/09/26',
-    planStartDate: '09/02/25',
-    planEndDate: '12/29/26',
-    percentComplete: '17%',
-    clientLocation: 'Hawaii',
-    currentPhase: 'Validate',
-    nextGateReview: '12/01/25',
-    bpwTargetMargin: '75%',
-    currentMargin: '68%',
+    complexity: '',
+    projectType: '',
+    planStartDate: '',
+    planEndDate: '',
+    percentComplete: '0', 
+    clientLocation: '',
+    currentPhase: '',
+    bpwTargetMargin: '',
   },
   budget: {
-    contractValue: '350000',
-    onshoreBudgetHours: '634',
-    offshoreBudgetHours: '1408',
-    onshoreSpentHours: '273',
+    contractValue: '',
+    onshoreBudgetHours: '',
+    offshoreBudgetHours: '',
+    onshoreSpentHours: '',
   },
   health: {
-    notStarted: 49, inProgress: 18, complete: 32,
-    green: 40, yellow: 4, red: 56,
-    riskOpen: 3, actionOpen: 3, issueOpen: 0, decisionOpen: 0,
-    riskLate: 2, actionLate: 3, issueLate: 0, decisionLate: 0,
+    notStarted: 0, inProgress: 0, complete: 0,
+    green: 0, yellow: 0, red: 0,
+    riskOpen: 0, actionOpen: 0, issueOpen: 0, decisionOpen: 0,
+    riskLate: 0, actionLate: 0, issueLate: 0, decisionLate: 0,
   }
 };
 
@@ -103,28 +96,29 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
             const saved = await getOverview(projectKey);
             if (saved) {
                 // Map API response (flattened overview + json budget/health) to ProjectData
+                // Ensure nulls become empty strings for controlled inputs
                 const mapped: ProjectData = {
                     overview: {
-                        schdHealth: saved.schdHealth as any,
-                        complexity: saved.complexity,
-                        projectType: saved.projectType,
-                        contractStartDate: saved.contractStartDate,
-                        contractEndDate: saved.contractEndDate,
-                        planStartDate: saved.planStartDate,
-                        planEndDate: saved.planEndDate,
-                        percentComplete: saved.percentComplete,
-                        clientLocation: saved.clientLocation,
-                        currentPhase: saved.currentPhase,
-                        nextGateReview: saved.nextGateReview,
-                        bpwTargetMargin: saved.bpwTargetMargin,
-                        currentMargin: saved.currentMargin
+                        schdHealth: (saved.schdHealth || 'yellow') as any,
+                        complexity: saved.complexity || '',
+                        projectType: saved.projectType || '',
+                        planStartDate: saved.planStartDate || '',
+                        planEndDate: saved.planEndDate || '',
+                        percentComplete: saved.percentComplete || '0',
+                        clientLocation: saved.clientLocation || '',
+                        currentPhase: saved.currentPhase || '',
+                        bpwTargetMargin: saved.bpwTargetMargin || '',
                     },
-                    budget: saved.budget as any,
+                    budget: {
+                        contractValue: saved.budget?.contractValue || '',
+                        onshoreBudgetHours: saved.budget?.onshoreBudgetHours || '',
+                        offshoreBudgetHours: saved.budget?.offshoreBudgetHours || '',
+                        onshoreSpentHours: saved.budget?.onshoreSpentHours || ''
+                    },
                     health: saved.health as any
                 };
                 
                 // Merge with defaults to ensure all fields exist if API partial
-                // Using spread to ensure structure
                 const finalData = {
                     overview: { ...DEFAULT_DATA.overview, ...mapped.overview },
                     budget: { ...DEFAULT_DATA.budget, ...(mapped.budget || {}) },
@@ -162,21 +156,22 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
   };
 
   // --- Calculations ---
-  // Budget
-  const onshoreBudget = parseFloat(data.budget.onshoreBudgetHours) || 0;
-  const offshoreBudget = parseFloat(data.budget.offshoreBudgetHours) || 0;
+  // Budget - safely parse, handling '-' or empty as 0
+  const safeParse = (val: string) => {
+      if (!val || val === '-') return 0;
+      return parseFloat(val) || 0;
+  };
+
+  const onshoreBudget = safeParse(data.budget.onshoreBudgetHours);
+  const offshoreBudget = safeParse(data.budget.offshoreBudgetHours);
   const totalBudget = onshoreBudget + offshoreBudget;
-  const onshoreSpent = parseFloat(data.budget.onshoreSpentHours) || 0;
+  const onshoreSpent = safeParse(data.budget.onshoreSpentHours);
   const totalSpent = onshoreSpent + offshoreSpentHours;
   const percentSpent = totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0;
   const percentOnshore = onshoreBudget > 0 ? (onshoreSpent / onshoreBudget) * 100 : 0;
   const percentOffshore = offshoreBudget > 0 ? (offshoreSpentHours / offshoreBudget) * 100 : 0;
 
   // Timeline & Progress
-  // Use manual dates or fallback to calculated from epics? 
-  // User asked to "Use data in the EPIC TIMELINE the generate insight".
-  // Let's rely on manual Start/End for the Project-level scope, but visualize progress within it.
-  
   // % Complete from Epics
   let percentComplete = 0;
   let totalEpicIssues = 0;
@@ -189,16 +184,23 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
       });
       percentComplete = totalEpicIssues > 0 ? (doneEpicIssues / totalEpicIssues) * 100 : 0;
   } else {
-      // Fallback to manual if no epics (or maybe 0)
-      percentComplete = parseFloat(data.overview.percentComplete) || 0;
+      percentComplete = safeParse(data.overview.percentComplete);
   }
 
   // Timeline Bar Logic
   const [timeProgress, setTimeProgress] = useState(0);
 
   useEffect(() => {
+    if (!data.overview.planStartDate || !data.overview.planEndDate || data.overview.planStartDate === '-' || data.overview.planEndDate === '-') {
+        setTimeProgress(0);
+        return;
+    }
     const startDate = new Date(data.overview.planStartDate).getTime();
     const endDate = new Date(data.overview.planEndDate).getTime();
+    if (isNaN(startDate) || isNaN(endDate)) {
+        setTimeProgress(0);
+        return;
+    }
     const now = new Date().getTime();
     const totalDuration = endDate - startDate;
     const elapsed = now - startDate;
@@ -209,18 +211,20 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
 
   // --- Render Helpers ---
 
-  const renderEditableInput = (value: string, onChange: (val: string) => void, width?: string, type: 'text'|'number' = 'text') => {
+  const renderEditableInput = (value: string, onChange: (val: string) => void, width?: string, type: 'text'|'number'|'date' = 'text') => {
       if (isEditing) {
           return (
              <input 
                 type={type}
                 value={value} 
                 onChange={e => onChange(e.target.value)}
-                style={{ width: width || '100%', padding: '4px', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.9rem' }} 
+                style={{ width: width || '100%', padding: '4px', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.9rem', fontFamily: 'inherit' }} 
              />
           );
       }
-      return <span>{type === 'number' ? value : value}</span>;
+      // Display placeholder if empty
+      const displayValue = (!value || value.trim() === '') ? '-' : value;
+      return <span>{displayValue}</span>;
   };
   
   const renderProgressBar = (value: number, total: number, color: string) => {
@@ -378,11 +382,16 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Client Location</div>
                                {renderEditableInput(data.overview.clientLocation, v => updateOverview('clientLocation', v))}
                            </div>
+                            <div>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Current Phase</div>
+                               {renderEditableInput(data.overview.currentPhase, v => updateOverview('currentPhase', v))}
+                           </div>
                            <div>
                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>BPW Target Margin</div>
                                {renderEditableInput(data.overview.bpwTargetMargin, v => updateOverview('bpwTargetMargin', v))}
                            </div>
                        </div>
+
                     </div>
 
                     {/* Health and Progress Section */}
@@ -416,13 +425,14 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
                            <div style={{ width: '48%' }}>
                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Start Date</div>
-                               {renderEditableInput(data.overview.planStartDate, v => updateOverview('planStartDate', v))}
+                               {renderEditableInput(data.overview.planStartDate, v => updateOverview('planStartDate', v), undefined, 'date')}
                            </div>
                            <div style={{ width: '48%' }}>
                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>End Date</div>
-                               {renderEditableInput(data.overview.planEndDate, v => updateOverview('planEndDate', v))}
+                               {renderEditableInput(data.overview.planEndDate, v => updateOverview('planEndDate', v), undefined, 'date')}
                            </div>
                        </div>
+
 
                        <div style={{ marginBottom: 15 }}>
                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Timeline Progress</div>
