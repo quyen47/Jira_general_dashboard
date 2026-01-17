@@ -21,6 +21,12 @@ export default async function Home() {
     console.log(`[Projects Overview] Received ${projects.length} projects.`);
     if (projects.length > 0) {
         console.log("[Projects Overview] Keys:", projects.map((p:any) => p.key).join(', '));
+        
+        // Sync with backend (fire and forget to not block UI, or await if critical)
+        // Since we are in a server component (async function), we can await it.
+        // However, we want the UI to load fast. But sync is fast. Let's await to ensure consistency.
+        const { syncProjectsWithBackend } = await import('@/lib/sync');
+        await syncProjectsWithBackend(projects);
     }
   } catch (e) {
     // If not authorized or error, redirect to login

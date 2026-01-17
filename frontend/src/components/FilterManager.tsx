@@ -3,6 +3,7 @@
 import { useState, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getJiraFilters, getFilterInsights, JiraFilter, FilterIssue, StatusPriorityBreakdown } from '@/actions/filters';
+import { getFilters, saveFilters as apiSaveFilters } from '@/lib/api';
 
 interface LocalFilter {
   id: string;
@@ -48,26 +49,25 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
   const [isLoadingInsights, startInsightsTransition] = useTransition();
   const [isLoadingFilters, startFiltersTransition] = useTransition();
 
-  const STORAGE_KEY = `jira_dashboard_filters_${projectKey}`;
-
   // Load local filters and Jira filters
   useEffect(() => {
-    // Load local filters
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setFilters(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load filters", e);
-      }
+    // Load saved filters from backend
+    async function load() {
+        try {
+            const saved = await getFilters(projectKey);
+            if (saved) setFilters(saved);
+        } catch (e) {
+            console.error("Failed to load filters", e);
+        }
     }
+    load();
 
     // Fetch Jira filters for this project
     startFiltersTransition(async () => {
       const jFilters = await getJiraFilters(projectKey);
       setJiraFilters(jFilters);
     });
-  }, [STORAGE_KEY]);
+  }, [projectKey]);
 
   // Fetch insights when filter changes or panel opens
   useEffect(() => {
@@ -81,9 +81,13 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
     }
   }, [isOpen, currentFilterJql, projectKey]);
 
-  const saveFilters = (newFilters: LocalFilter[]) => {
+  const saveFilters = async (newFilters: LocalFilter[]) => {
     setFilters(newFilters);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newFilters));
+    try {
+        await apiSaveFilters(projectKey, newFilters);
+    } catch (e) {
+        console.error("Failed to save filters", e);
+    }
   };
 
   const handleAdd = () => {

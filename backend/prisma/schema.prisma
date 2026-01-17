@@ -17,36 +17,52 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  overview  ProjectOverview?
-  worklogs  Worklog[]
+  overview       ProjectOverview?
+  worklogs       Worklog[] // Keep worklogs separate for now as they can be numerous
+  stakeholders   Stakeholder[]
+  quickLinks     QuickLink[]
+  savedFilters   SavedFilter[]
 }
 
-model ProjectOverview {
-  id              String   @id @default(auto()) @map("_id") @db.ObjectId
-  projectId       String   @unique @db.ObjectId
-  project         Project  @relation(fields: [projectId], references: [id])
-  
-  // Overview Data
+type ProjectOverview {
   schdHealth      String   @default("yellow")
   complexity      String   @default("Medium")
-  contractStart   String?
-  contractEnd     String?
-  planStart       String?
-  planEnd         String?
-  percentComplete String?
-  clientLocation  String?
-  currentPhase    String?
-  nextGateReview  String?
-  bpwTargetMargin String?
-  currentMargin   String?
+  projectType     String?
+  contractStartDate String?
+  contractEndDate   String?
+  planStartDate     String?
+  planEndDate       String?
+  percentComplete   String?
+  clientLocation    String?
+  currentPhase      String?
+  nextGateReview    String?
+  bpwTargetMargin   String?
+  currentMargin     String?
 
-  // Snapshots stored as Json for flexibility (perfect for Mongo)
-  budgetOverall   Json?
-  budgetOnshore   Json?
-  budgetOffshore  Json?
-  healthStats     Json?
+  // Data Blobs
+  budget          Json?
+  health          Json?
+}
 
-  updatedAt       DateTime @updatedAt
+type Stakeholder {
+  id              String
+  role            String
+  accountId       String?
+  displayName     String?
+  avatarUrl       String?
+}
+
+type QuickLink {
+  id        String
+  name      String
+  url       String
+}
+
+type SavedFilter {
+  id          String
+  name        String
+  jql         String
+  description String?
 }
 
 model Worklog {

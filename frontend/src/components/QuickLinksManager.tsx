@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { searchIssues, SearchResult } from '@/actions/search';
+import { getLinks, saveLinks as apiSaveLinks } from '@/lib/api';
 
 interface QuickLink {
   id: string;
@@ -28,34 +29,39 @@ export default function QuickLinksManager({ projectKey }: { projectKey: string }
   const [jiraBaseUrl, setJiraBaseUrl] = useState('');
   const [hasCheckedAutoOpen, setHasCheckedAutoOpen] = useState(false);
 
-  const STORAGE_KEY = `jira_dashboard_links_${projectKey}`;
-
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setLinks(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load links", e);
-      }
-    } else {
-        // Default Links
-        const defaults: QuickLink[] = [
-            { id: 'l1', name: 'Jira', url: '#' },
-            { id: 'l2', name: 'Confluence', url: '#' },
-            { id: 'l3', name: 'TimeSheet', url: '#' },
-            { id: 'l4', name: 'Offshore WO', url: '#' },
-            { id: 'l5', name: 'Project Overview', url: '#' },
-            { id: 'l6', name: 'PMI', url: '#' },
-            { id: 'l7', name: 'Quotation', url: '#' },
-        ];
-        setLinks(defaults);
+    async function load() {
+        try {
+            const saved = await getLinks(projectKey);
+            if (saved && saved.length > 0) {
+                setLinks(saved);
+            } else {
+                // Default Links
+                const defaults: QuickLink[] = [
+                    { id: 'l1', name: 'Jira', url: '#' },
+                    { id: 'l2', name: 'Confluence', url: '#' },
+                    { id: 'l3', name: 'TimeSheet', url: '#' },
+                    { id: 'l4', name: 'Offshore WO', url: '#' },
+                    { id: 'l5', name: 'Project Overview', url: '#' },
+                    { id: 'l6', name: 'PMI', url: '#' },
+                    { id: 'l7', name: 'Quotation', url: '#' },
+                ];
+                setLinks(defaults);
+            }
+        } catch (e) {
+            console.error("Failed to load links", e);
+        }
     }
+    load();
   }, [projectKey]);
 
-  const saveLinks = (newList: QuickLink[]) => {
+  const saveLinks = async (newList: QuickLink[]) => {
     setLinks(newList);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+    try {
+        await apiSaveLinks(projectKey, newList);
+    } catch (e) {
+        console.error("Failed to save links", e);
+    }
   };
 
   const startEdit = (link?: QuickLink) => {

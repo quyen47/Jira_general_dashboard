@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { getOverview, saveOverview as apiSaveOverview } from '@/lib/api';
 
 // --- Types ---
 interface OverviewData {
@@ -95,27 +96,57 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
   const [isOpen, setIsOpen] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [showEpicDetails, setShowEpicDetails] = useState(false);
-  const STORAGE_KEY = `jira_dashboard_overview_${projectKey}`;
 
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.budgetOverall)) {
-             setData({ ...DEFAULT_DATA, overview: parsed.overview || DEFAULT_DATA.overview });
-        } else {
-            setData(parsed);
+    async function load() {
+        try {
+            const saved = await getOverview(projectKey);
+            if (saved) {
+                // Map API response (flattened overview + json budget/health) to ProjectData
+                const mapped: ProjectData = {
+                    overview: {
+                        schdHealth: saved.schdHealth as any,
+                        complexity: saved.complexity,
+                        projectType: saved.projectType,
+                        contractStartDate: saved.contractStartDate,
+                        contractEndDate: saved.contractEndDate,
+                        planStartDate: saved.planStartDate,
+                        planEndDate: saved.planEndDate,
+                        percentComplete: saved.percentComplete,
+                        clientLocation: saved.clientLocation,
+                        currentPhase: saved.currentPhase,
+                        nextGateReview: saved.nextGateReview,
+                        bpwTargetMargin: saved.bpwTargetMargin,
+                        currentMargin: saved.currentMargin
+                    },
+                    budget: saved.budget as any,
+                    health: saved.health as any
+                };
+                
+                // Merge with defaults to ensure all fields exist if API partial
+                // Using spread to ensure structure
+                const finalData = {
+                    overview: { ...DEFAULT_DATA.overview, ...mapped.overview },
+                    budget: { ...DEFAULT_DATA.budget, ...(mapped.budget || {}) },
+                    health: { ...DEFAULT_DATA.health, ...(mapped.health || {}) }
+                };
+                
+                setData(finalData);
+            }
+        } catch (e) {
+            console.error("Failed to load overview", e);
         }
-      } catch (e) {
-        console.error(e);
-      }
     }
+    load();
   }, [projectKey]);
 
-  const saveData = (newData: ProjectData) => {
+  const saveData = async (newData: ProjectData) => {
     setData(newData);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newData));
+    try {
+        await apiSaveOverview(projectKey, newData);
+    } catch (e) {
+        console.error("Failed to save overview", e);
+    }
   };
 
   const updateOverview = (field: keyof OverviewData, value: string) => {

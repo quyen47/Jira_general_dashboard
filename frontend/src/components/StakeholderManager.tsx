@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { searchJiraUsers } from '@/actions/users';
+import { getStakeholders, saveStakeholders as apiSaveStakeholders } from '@/lib/api';
 
 interface Stakeholder {
   id: string;
@@ -29,31 +30,48 @@ export default function StakeholderManager({ projectKey }: { projectKey: string 
   const [editQuery, setEditQuery] = useState('');
   const [editResults, setEditResults] = useState<any[]>([]);
 
-  const STORAGE_KEY = `jira_dashboard_stakeholders_${projectKey}`;
-
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setStakeholders(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to load stakeholders", e);
-      }
-    } else {
-        // Default roles as requested
-        const defaults: Stakeholder[] = [
-            { id: 'default-1', role: 'Account Executive', user: null },
-            { id: 'default-2', role: 'DH Project Manager', user: null },
-            { id: 'default-3', role: 'DHA Project Manager', user: null },
-            { id: 'default-4', role: 'Solution Lead', user: null },
-        ];
-        setStakeholders(defaults);
+    async function load() {
+        try {
+            const saved = await getStakeholders(projectKey);
+            if (saved && saved.length > 0) {
+                // Map backend structure if needed, currently it matches mostly but user object is flattened in backend
+                // Backend: role, accountId, displayName, avatarUrl
+                // Frontend: role, user: { accountId, ... }
+                const mapped = saved.map((s: any) => ({
+                    id: s.id,
+                    role: s.role,
+                    user: s.accountId ? {
+                        accountId: s.accountId,
+                        displayName: s.displayName,
+                        avatarUrl: s.avatarUrl
+                    } : null
+                }));
+                setStakeholders(mapped);
+            } else {
+                // Default roles as requested
+                const defaults: Stakeholder[] = [
+                    { id: 'default-1', role: 'Account Executive', user: null },
+                    { id: 'default-2', role: 'DH Project Manager', user: null },
+                    { id: 'default-3', role: 'DHA Project Manager', user: null },
+                    { id: 'default-4', role: 'Solution Lead', user: null },
+                ];
+                setStakeholders(defaults);
+            }
+        } catch (e) {
+            console.error("Failed to load stakeholders", e);
+        }
     }
+    load();
   }, [projectKey]);
 
-  const saveStakeholders = (newList: Stakeholder[]) => {
+  const saveStakeholders = async (newList: Stakeholder[]) => {
     setStakeholders(newList);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(newList));
+    try {
+        await apiSaveStakeholders(projectKey, newList);
+    } catch (e) {
+        console.error("Failed to save stakeholders", e);
+    }
   };
 
   const handleSearch = async (q: string) => {
