@@ -170,24 +170,22 @@ export default function BurnDownChart({
   }
 
   
-  // Calculate current status using actual spent hours from worklogs
-  const percentSpent = (actualSpentHours / offshoreBudget) * 100;
-  const start = new Date(planStartDate);
-  const end = new Date(planEndDate);
-  const today = new Date();
-  const totalDuration = end.getTime() - start.getTime();
-  const elapsed = today.getTime() - start.getTime();
-  const percentTimeElapsed = (elapsed / totalDuration) * 100;
-  
+  // Calculate current status by comparing actual vs ideal at the latest data point
   let status = 'On Track';
   let statusColor = '#36B37E'; // Green
   
-  if (percentSpent > percentTimeElapsed + 10) {
-    status = 'Over Budget';
-    statusColor = '#FF5630'; // Red
-  } else if (percentSpent > percentTimeElapsed) {
-    status = 'At Risk';
-    statusColor = '#FFAB00'; // Yellow
+  // Find the last data point with actual hours remaining
+  const lastActualPoint = chartData.slice().reverse().find(d => d.actualHoursRemaining !== undefined);
+  
+  if (lastActualPoint) {
+    const actualRemaining = lastActualPoint.actualHoursRemaining || 0;
+    const idealRemaining = lastActualPoint.idealHoursRemaining;
+    
+    // If actual is below ideal, we're burning hours faster than planned
+    if (actualRemaining < idealRemaining) {
+      status = 'At Risk';
+      statusColor = '#FF5630'; // Red
+    }
   }
 
   return (
