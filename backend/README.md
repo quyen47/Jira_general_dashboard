@@ -6,7 +6,7 @@ A Node.js/Express service providing API endpoints and database connectivity for 
 
 *   **Runtime**: Node.js
 *   **Framework**: Express.js
-*   **Database ORM**: Prisma
+*   **Database**: MongoDB (via Prisma ORM)
 *   **Language**: TypeScript
 
 ## 🚀 Setup
@@ -20,12 +20,12 @@ A Node.js/Express service providing API endpoints and database connectivity for 
     Create a `.env` file in this directory:
     ```env
     PORT=3001
-    DATABASE_URL="file:./dev.db"  # Example for SQLite
+    DATABASE_URL="mongodb+srv://<username>:<password>@cluster.mongodb.net/jira_dashboard"
     ```
 
-3.  **Database Migration** (if using Prisma):
+3.  **Generate Prisma Client**:
     ```bash
-    npx prisma migrate dev
+    npx prisma generate
     ```
 
 ## 🏃‍♂️ Running
@@ -33,11 +33,21 @@ A Node.js/Express service providing API endpoints and database connectivity for 
 *   **Development**:
     ```bash
     npm run dev
-    # Or directly if script missing:
-    npx ts-node index.ts
     ```
 
 ## 📝 API Overview
 
-*   `GET /`: Health check
-*   *(More endpoints to be added)*
+The backend uses a **Single Document Architecture**, meaning all sub-resources (stakeholders, links, filters) are stored as embedded documents within the Project.
+
+### Sync
+*   `POST /api/projects/sync`: Upserts projects from Jira into the MongoDB `Project` collection. Called on frontend login.
+
+### Resources
+*   `GET /api/projects/:key/stakeholders`
+*   `POST /api/projects/:key/stakeholders`
+*   `GET /api/projects/:key/links`
+*   `POST /api/projects/:key/links`
+*   `GET /api/projects/:key/filters`
+*   `POST /api/projects/:key/filters`
+*   `GET /api/projects/:key/overview`
+*   `POST /api/projects/:key/overview`

@@ -8,6 +8,7 @@ A Next.js 14+ application serving as the UI for the Jira Dashboard.
 *   **Language**: TypeScript
 *   **Styling**: Vanilla CSS, module CSS
 *   **Jira Client**: `jira.js`
+*   **Backend Integration**: Custom Express API (for MongoDB persistence)
 *   **Charts**: Recharts
 
 ## 🚀 Setup

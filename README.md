@@ -16,14 +16,15 @@ A comprehensive dashboard for visualizing Jira project data, managing timesheets
 
 The project is divided into two main parts:
 
-*   **`frontend/`**: Next.js (App Router) application using `jira.js` to communicate directly with Jira API for most read operations.
-*   **`backend/`**: Node.js/Express application with Prisma ORM (currently being set up for data persistence nuances not covered by Jira API).
+*   **`frontend/`**: Next.js (App Router) application using `jira.js` to communicate directly with Jira API for most read operations. It also syncs project data to our backend on login.
+*   **`backend/`**: Node.js/Express application with Prisma ORM connecting to **MongoDB**. It stores persistent data (Stakeholders, Links, Overview, Filters) using a **Single Document Architecture** (Embedded Documents) for each project.
 
 ## 📋 Prerequisites
 
 *   Node.js 18+
 *   npm
 *   A Jira Cloud instance and an API Token.
+*   **MongoDB Database** (Cloud Atlas or Local).
 
 ## 🔧 Installation & Setup
 
@@ -54,7 +55,7 @@ npm install
 **Configuration:**
 Create a `.env` file in `backend/`:
 ```env
-DATABASE_URL="file:./dev.db" # Or your actual database URL
+DATABASE_URL="mongodb+srv://<username>:<password>@cluster.mongodb.net/jira_dashboard"
 PORT=3001
 ```
 
