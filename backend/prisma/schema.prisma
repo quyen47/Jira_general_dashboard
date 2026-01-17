@@ -28,6 +28,7 @@ type ProjectOverview {
   schdHealth      String   @default("yellow")
   complexity      String   @default("Medium")
   projectType     String?
+  projectStatus   String?
   planStartDate     String?
   planEndDate       String?
   percentComplete   String?

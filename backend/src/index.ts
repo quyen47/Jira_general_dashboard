@@ -231,23 +231,29 @@ app.post('/api/projects/:key/overview', async (req, res) => {
         const overviewData = {
             schdHealth: ov.schdHealth || 'yellow',
             complexity: ov.complexity || 'Medium',
-            projectType: ov.projectType,
-            planStartDate: ov.planStartDate,
-            planEndDate: ov.planEndDate,
-            percentComplete: ov.percentComplete,
-            clientLocation: ov.clientLocation,
-            currentPhase: ov.currentPhase,
-            bpwTargetMargin: ov.bpwTargetMargin,
+            projectType: ov.projectType || null,
+            projectStatus: ov.projectStatus || null,
+            planStartDate: ov.planStartDate || null,
+            planEndDate: ov.planEndDate || null,
+            percentComplete: ov.percentComplete || null,
+            clientLocation: ov.clientLocation || null,
+            currentPhase: ov.currentPhase || null,
+            bpwTargetMargin: ov.bpwTargetMargin || null,
             budget: data.budget || {},
             health: data.health || {}
         };
 
-        const project = await prisma.project.update({
+        await prisma.project.update({
             where: { key },
             data: { overview: overviewData }
         });
         
-        res.json(project.overview);
+        // Fetch the updated project to get the complete overview
+        const updatedProject = await prisma.project.findUnique({
+            where: { key }
+        });
+        
+        res.json(updatedProject?.overview);
     } catch (e) {
         console.error('Error saving overview:', e);
         res.status(500).json({ error: 'Failed to save overview' });

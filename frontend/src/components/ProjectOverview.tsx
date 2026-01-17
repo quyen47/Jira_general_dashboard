@@ -10,6 +10,7 @@ interface OverviewData {
     schdHealth: 'green' | 'yellow' | 'red';
     complexity: string;
     projectType: string;
+    projectStatus: 'To Do' | 'On Going' | 'On Hold' | 'Closed' | '';
     planStartDate: string;
     planEndDate: string;
     percentComplete: string;
@@ -60,6 +61,7 @@ const DEFAULT_DATA: ProjectData = {
     schdHealth: 'yellow',
     complexity: '',
     projectType: '',
+    projectStatus: '',
     planStartDate: '',
     planEndDate: '',
     percentComplete: '0', 
@@ -103,6 +105,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                         schdHealth: (saved.schdHealth || 'yellow') as any,
                         complexity: saved.complexity || '',
                         projectType: saved.projectType || '',
+                        projectStatus: saved.projectStatus || '',
                         planStartDate: saved.planStartDate || '',
                         planEndDate: saved.planEndDate || '',
                         percentComplete: saved.percentComplete || '0',
@@ -238,40 +241,96 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
   };
 
   const renderTimelineBar = () => {
+      // Check if project is overtime (today > end date) and status is "On Going"
+      const startDate = new Date(data.overview.planStartDate).getTime();
+      const endDate = new Date(data.overview.planEndDate).getTime();
+      const now = new Date().getTime();
+      const isOvertime = now > endDate && data.overview.projectStatus === 'On Going';
+      
+      const originalDuration = endDate - startDate;
+      const overtimeDuration = isOvertime ? (now - endDate) : 0;
+      const totalDisplayDuration = isOvertime ? (originalDuration + overtimeDuration) : originalDuration;
+
+      // Calculate percentages based on the total display duration (which includes overtime if applicable)
+      // If overtime, the total width matches "now". If not, it matches "endDate".
+      
+      let blueBarWidth = 100;
+      let redBarWidth = 0;
+      let markerPosition = timeProgress; // Default for normal case
+
+      if (isOvertime && totalDisplayDuration > 0) {
+        // Rescale: The whole container represents start -> now
+        // Blue bar (start -> end)
+        blueBarWidth = Math.min((originalDuration / totalDisplayDuration) * 100, 100);
+        // Red bar (end -> now)
+        redBarWidth = (overtimeDuration / totalDisplayDuration) * 100;
+        // Marker is exactly at the end (100% of container)
+        markerPosition = 100;
+      }
+
       return (
         <div style={{ marginTop: 25, marginBottom: 10 }}>
             <div style={{ position: 'relative' }}>
                 {/* Today Label */}
                  <div style={{ 
                     position: 'absolute', 
-                    left: `${timeProgress}%`, 
+                    left: `${markerPosition}%`, 
                     top: -24, 
-                    transform: 'translateX(-50%)', 
+                    transform: 'translateX(-100%)', // Shift left to keep it inside properly
                     fontSize: '0.75rem', 
-                    color: '#FF5630', 
+                    color: isOvertime ? '#FF5630' : '#FF5630', 
                     fontWeight: 700,
-                    whiteSpace: 'nowrap'
+                    whiteSpace: 'nowrap',
+                    paddingRight: isOvertime ? 0 : 0
                 }}>
-                    Today
+                    {isOvertime ? 'Today (OVERTIME)' : 'Today'}
                 </div>
 
-                {/* Bar */}
-                <div style={{ height: 8, background: '#dfe1e6', borderRadius: 4, position: 'relative', overflow: 'visible' }}>
+                {/* Bar Container - always 100% width */}
+                <div style={{ height: 8, background: '#dfe1e6', borderRadius: 4, position: 'relative', overflow: 'hidden', width: '100%' }}>
+                    {/* Normal progress (blue) */}
                     <div style={{ 
-                        position: 'absolute', left: 0, top: 0, height: '100%', width: `${timeProgress}%`, 
-                        background: '#0052cc', borderRadius: 4 
+                        position: 'absolute', left: 0, top: 0, height: '100%', width: `${isOvertime ? blueBarWidth : Math.min(timeProgress, 100)}%`, 
+                        background: '#0052cc', borderRadius: isOvertime ? '4px 0 0 4px' : '4px' 
                     }} />
+                    
+                    {/* Overtime period (red) */}
+                    {isOvertime && (
+                        <div style={{ 
+                            position: 'absolute', left: `${blueBarWidth}%`, top: 0, height: '100%', width: `${redBarWidth}%`, 
+                            background: '#FF5630', borderRadius: '0 4px 4px 0'
+                        }} />
+                    )}
+                    
                     {/* Marker */}
                     <div style={{ 
-                        position: 'absolute', left: `${timeProgress}%`, top: -4, bottom: -4, width: 2, background: '#FF5630', zIndex: 2
+                        position: 'absolute', left: `${markerPosition}%`, top: -4, bottom: -4, width: 2, background: '#FF5630', zIndex: 2, marginLeft: -2
                     }} />
                 </div>
             </div>
 
             {/* Date Labels */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: '0.75rem', color: '#666' }}>
-                <span>{data.overview.planStartDate}</span>
-                <span>{data.overview.planEndDate}</span>
+            <div style={{ position: 'relative', height: '1.5em', marginTop: 8, fontSize: '0.75rem', color: '#666' }}>
+                <span style={{ position: 'absolute', left: 0 }}>{data.overview.planStartDate}</span>
+                
+                {/* End Date Label - Position depends on if we are overtime */}
+                <span style={{ 
+                    position: 'absolute', 
+                    left: isOvertime ? `${blueBarWidth}%` : '100%', 
+                    transform: isOvertime ? 'translateX(-50%)' : 'translateX(-100%)',
+                    color: isOvertime ? '#FF5630' : '#666', 
+                    fontWeight: isOvertime ? 700 : 'normal',
+                    whiteSpace: 'nowrap'
+                }}>
+                    {isOvertime && 'Due: '}{data.overview.planEndDate}
+                </span>
+
+                {/* Overtime End Label (Today's date) */}
+                {isOvertime && (
+                     <span style={{ position: 'absolute', right: 0, color: '#FF5630', fontWeight: 700 }}>
+                        {new Date().toISOString().split('T')[0]}
+                     </span>
+                )}
             </div>
         </div>
       );
@@ -380,6 +439,24 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                                {renderEditableInput(data.overview.projectType, v => updateOverview('projectType', v))}
                            </div>
                            <div>
+                               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Project Status</div>
+                               {isEditing ? (
+                                   <select 
+                                       value={data.overview.projectStatus}
+                                       onChange={e => updateOverview('projectStatus', e.target.value as any)}
+                                       style={{ width: '100%', padding: '4px', border: '1px solid #ccc', borderRadius: 4, fontSize: '0.9rem', fontFamily: 'inherit' }}
+                                   >
+                                       <option value="">-</option>
+                                       <option value="To Do">To Do</option>
+                                       <option value="On Going">On Going</option>
+                                       <option value="On Hold">On Hold</option>
+                                       <option value="Closed">Closed</option>
+                                   </select>
+                               ) : (
+                                   <span>{data.overview.projectStatus || '-'}</span>
+                               )}
+                           </div>
+                           <div>
                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Client Location</div>
                                {renderEditableInput(data.overview.clientLocation, v => updateOverview('clientLocation', v))}
                            </div>
@@ -415,9 +492,24 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                          <div style={{ 
                                              width: 12, height: 12, borderRadius: '50%',
-                                             background: data.overview.schdHealth === 'green' ? '#36B37E' : data.overview.schdHealth === 'yellow' ? '#FFAB00' : '#FF5630' 
+                                             background: (() => {
+                                                 // Check if overtime
+                                                 const now = new Date().getTime();
+                                                 const endDate = new Date(data.overview.planEndDate).getTime();
+                                                 const isOvertime = now > endDate && data.overview.projectStatus === 'On Going';
+                                                 if (isOvertime) return '#FF5630';
+                                                 return data.overview.schdHealth === 'green' ? '#36B37E' : data.overview.schdHealth === 'yellow' ? '#FFAB00' : '#FF5630';
+                                             })()
                                          }} />
-                                         <span style={{ textTransform: 'capitalize' }}>{data.overview.schdHealth}</span>
+                                         <span style={{ textTransform: 'capitalize' }}>
+                                             {(() => {
+                                                 const now = new Date().getTime();
+                                                 const endDate = new Date(data.overview.planEndDate).getTime();
+                                                 const isOvertime = now > endDate && data.overview.projectStatus === 'On Going';
+                                                 if (isOvertime) return 'red';
+                                                 return data.overview.schdHealth;
+                                             })()}
+                                         </span>
                                      </div>
                                  )}
                            </div>
@@ -443,7 +535,13 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                            <div>
                                 <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84' }}>% Complete (Issues)</div>
-                                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#0052cc' }}>{percentComplete.toFixed(0)}%</div>
+                                <div style={{ fontSize: '1.2rem', fontWeight: 'bold', color: (() => {
+                                    // Check if overtime
+                                    const now = new Date().getTime();
+                                    const endDate = new Date(data.overview.planEndDate).getTime();
+                                    const isOvertime = now > endDate && data.overview.projectStatus === 'On Going';
+                                    return isOvertime ? '#FF5630' : '#0052cc';
+                                })() }}>{percentComplete.toFixed(0)}%</div>
                            </div>
                            <div>
                                 <button 
