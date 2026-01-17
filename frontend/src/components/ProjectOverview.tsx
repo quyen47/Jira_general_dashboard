@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { getOverview, saveOverview as apiSaveOverview } from '@/lib/api';
+import BurnDownChart from './BurnDownChart';
 
 // --- Types ---
 interface OverviewData {
@@ -554,7 +555,21 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                         </div>
 
                      </div>
-                </div>
+
+                     {/* Burn Down Chart */}
+                     <div style={{ marginTop: '30px', background: '#f4f5f7', padding: 20, borderRadius: 8 }}>
+                         <h4 style={{ margin: '0 0 20px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8 }}>
+                           Offshore Hours Burn Down
+                         </h4>
+                         <BurnDownChart
+                           projectKey={projectKey}
+                           offshoreBudget={offshoreBudget}
+                           offshoreSpentHours={offshoreSpentHours}
+                           planStartDate={data.overview.planStartDate}
+                           planEndDate={data.overview.planEndDate}
+                         />
+                     </div>
+                 </div>
 
                 <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />
 
