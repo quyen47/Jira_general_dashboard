@@ -29,6 +29,7 @@ export default function BurnDownChart({
   // HOOKS MUST BE CALLED FIRST - before any conditional returns
   const [chartData, setChartData] = useState<BurnDownDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actualSpentHours, setActualSpentHours] = useState<number>(0);
 
   useEffect(() => {
     async function fetchBurnDownData() {
@@ -114,7 +115,12 @@ export default function BurnDownChart({
         console.log('[Chart] Generated chart data:', data.length, 'points');
         console.log('[Chart] Chart data:', data);
         
+        // Store the actual cumulative hours for the status display
+        const actualCumulativeHours = lastCumulativeHours;
+        console.log('[Chart] Actual cumulative hours spent:', actualCumulativeHours);
+        
         setChartData(data);
+        setActualSpentHours(actualCumulativeHours);
       } catch (error) {
         console.error('Error fetching burn down data:', error);
       } finally {
@@ -164,8 +170,8 @@ export default function BurnDownChart({
   }
 
   
-  // Calculate current status
-  const percentSpent = (offshoreSpentHours / offshoreBudget) * 100;
+  // Calculate current status using actual spent hours from worklogs
+  const percentSpent = (actualSpentHours / offshoreBudget) * 100;
   const start = new Date(planStartDate);
   const end = new Date(planEndDate);
   const today = new Date();
@@ -194,7 +200,7 @@ export default function BurnDownChart({
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '0.85rem', color: '#5e6c84' }}>Hours Remaining</div>
           <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0052cc' }}>
-            {Math.max(0, offshoreBudget - offshoreSpentHours).toFixed(1)} / {offshoreBudget}
+            {Math.max(0, offshoreBudget - actualSpentHours).toFixed(1)} / {offshoreBudget}
           </div>
         </div>
       </div>
@@ -219,7 +225,15 @@ export default function BurnDownChart({
               borderRadius: 4,
               fontSize: '0.85rem'
             }}
-            formatter={(value: number | undefined) => value !== undefined ? [`${value} hrs`, ''] : ['', '']}
+            formatter={(value: number | undefined, name: string | undefined) => {
+              if (value === undefined) return ['', ''];
+              
+              // The 'name' parameter is the Line component's name prop value
+              // "Ideal Burn Down" (blue line) -> "Ideal"
+              // "Actual Hours Remaining" (green line) -> "Actual"
+              const label = name === 'Ideal Burn Down' ? 'Ideal' : 'Actual';
+              return [`${value} hrs`, label];
+            }}
           />
           <Legend 
             wrapperStyle={{ fontSize: '0.85rem' }}

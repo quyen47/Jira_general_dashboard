@@ -165,18 +165,30 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
 }
 /**
  * Get total hours spent on a project (for offshore hours calculation)
+ * Uses worklogDate JQL filter for consistency with getBurnDownData
  */
 export async function getProjectTotalHours(projectKey: string): Promise<number> {
   try {
     const jira = await getJiraClient();
     
+    console.log('[TotalHours] Fetching total hours for project:', projectKey);
+    
+    // Use worklogDate filter to capture ALL worklogs
+    const startDate = '2000-01-01'; // Capture all historical worklogs
+    const endDate = new Date().toISOString().split('T')[0]; // Up to today
+    
+    const jql = `project = "${projectKey}" AND worklogDate >= "${startDate}" AND worklogDate <= "${endDate}"`;
+    
+    console.log('[TotalHours] JQL:', jql);
+    
     const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
-      jql: `project = "${projectKey}"`,
+      jql,
       maxResults: 1000,
       fields: ['worklog']
     });
 
     let totalSeconds = 0;
+    let worklogCount = 0;
     
     for (const issue of search.issues || []) {
       const fields = issue.fields as any;
@@ -184,10 +196,16 @@ export async function getProjectTotalHours(projectKey: string): Promise<number> 
       
       for (const log of worklogs) {
         totalSeconds += log.timeSpentSeconds || 0;
+        worklogCount++;
       }
     }
     
-    return Math.round((totalSeconds / 3600) * 100) / 100;
+    const totalHours = totalSeconds / 3600;
+    
+    console.log('[TotalHours] Found', worklogCount, 'worklogs');
+    console.log('[TotalHours] Total hours:', totalHours.toFixed(2));
+    
+    return Math.round(totalHours * 100) / 100;
   } catch (e) {
     console.error('Failed to fetch project total hours:', e);
     return 0;
