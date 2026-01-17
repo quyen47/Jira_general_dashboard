@@ -24,6 +24,7 @@ app.get('/api/projects', async (req, res) => {
         });
         res.json(projects);
     } catch (error) {
+        console.error('Error fetching projects:', error);
         res.status(500).json({ error: 'Failed to fetch projects' });
     }
 });
