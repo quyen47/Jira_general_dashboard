@@ -10,8 +10,11 @@ export interface SearchResult {
 }
 
 export async function searchIssues(query: string, projectKey: string, issueType?: string): Promise<{ issues: SearchResult[], baseUrl: string }> {
-  const jira = await getJiraClient();
-  const creds = await getJiraCredentials();
+  // ✅ OPTIMIZATION: Parallelize independent async operations
+  const [jira, creds] = await Promise.all([
+    getJiraClient(),
+    getJiraCredentials()
+  ]);
   
   let baseUrl = '';
   if (creds?.domain) {

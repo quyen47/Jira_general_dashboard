@@ -43,8 +43,13 @@ interface DateRange {
 
 export async function getProjectWorklogs(projectKey: string, range?: number | DateRange): Promise<{ data: TimesheetData, baseUrl: string }> {
   try {
-    const jira = await getJiraClient();
-    const credentials = await getJiraCredentials();
+    // ✅ OPTIMIZATION: Parallelize independent async operations
+    // Fetch jira client and credentials concurrently instead of sequentially
+    const [jira, credentials] = await Promise.all([
+      getJiraClient(),
+      getJiraCredentials()
+    ]);
+    
     let baseUrl = credentials?.domain || '';
     if (baseUrl && !baseUrl.startsWith('http')) {
       baseUrl = `https://${baseUrl}`;
@@ -274,8 +279,10 @@ export async function getBurnDownData(
     let totalIssuesFetched = 0;
     let totalWorklogsInRange = 0;
     
-    // Fetch worklogs for each week range
-    for (const week of weekRanges) {
+    // ✅ OPTIMIZATION: Parallelize weekly fetches using Promise.all()
+    // This eliminates the sequential waterfall and fetches all weeks concurrently
+    // Expected improvement: 2-3x faster for multi-week ranges
+    const weeklyFetches = weekRanges.map(async (week) => {
       // Use worklogDate JQL filter (like Timesheet does)
       const jql = `project = "${projectKey}" AND worklogDate >= "${week.start}" AND worklogDate <= "${week.end}"`;
       
@@ -289,11 +296,12 @@ export async function getBurnDownData(
       });
       
       const issues = search.issues || [];
-      totalIssuesFetched += issues.length;
-      
       console.log('[BurnDown]   - Issues found:', issues.length);
       
       // Process worklogs from this week's issues
+      const weekData: { [weekStart: string]: number } = {};
+      let worklogCount = 0;
+      
       for (const issue of issues) {
         const fields = issue.fields as any;
         const worklogs = fields.worklog?.worklogs || [];
@@ -303,17 +311,36 @@ export async function getBurnDownData(
           
           // Only include logs within the overall date range and this week
           if (logDate >= week.start && logDate <= week.end && logDate >= startDate && logDate <= endDate) {
-            totalWorklogsInRange++;
+            worklogCount++;
             
             // Group by week start (Monday)
             const logWeekStart = getWeekStart(logDate);
             
-            if (!weeklyHours[logWeekStart]) {
-              weeklyHours[logWeekStart] = 0;
+            if (!weekData[logWeekStart]) {
+              weekData[logWeekStart] = 0;
             }
-            weeklyHours[logWeekStart] += (log.timeSpentSeconds || 0) / 3600; // Convert to hours
+            weekData[logWeekStart] += (log.timeSpentSeconds || 0) / 3600; // Convert to hours
           }
         }
+      }
+      
+      return { issues: issues.length, worklogs: worklogCount, weekData };
+    });
+    
+    // Wait for all weekly fetches to complete in parallel
+    const weeklyResults = await Promise.all(weeklyFetches);
+    
+    // Aggregate results from all weeks
+    for (const result of weeklyResults) {
+      totalIssuesFetched += result.issues;
+      totalWorklogsInRange += result.worklogs;
+      
+      // Merge week data
+      for (const [weekStart, hours] of Object.entries(result.weekData)) {
+        if (!weeklyHours[weekStart]) {
+          weeklyHours[weekStart] = 0;
+        }
+        weeklyHours[weekStart] += hours;
       }
     }
     
