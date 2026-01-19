@@ -1,5 +1,5 @@
 /**
- * Helper functions for capacity calculations
+ * Enhanced capacity calculation utilities with support for multiple allocations over time
  */
 
 /**
@@ -29,6 +29,94 @@ export function calculateWorkDays(startDate: string, endDate: string): number {
 export function calculateAvailableHours(allocationPercent: number, workDays: number): number {
   const hoursPerDay = 8;
   return workDays * (allocationPercent / 100) * hoursPerDay;
+}
+
+/**
+ * Calculate weighted average allocation across multiple allocation periods
+ * @param allocations - Array of allocations with date ranges
+ * @param rangeStart - Start of the period to calculate for
+ * @param rangeEnd - End of the period to calculate for
+ * @returns Weighted average allocation percentage and total available hours
+ */
+export function calculateWeightedAllocation(
+  allocations: Array<{
+    startDate: string;
+    endDate: string;
+    allocationPercent: number;
+  }>,
+  rangeStart: string,
+  rangeEnd: string
+): {
+  weightedAllocation: number;
+  totalAvailableHours: number;
+  allocationPeriods: Array<{
+    startDate: string;
+    endDate: string;
+    allocationPercent: number;
+    workDays: number;
+    availableHours: number;
+  }>;
+} {
+  if (allocations.length === 0) {
+    return {
+      weightedAllocation: 0,
+      totalAvailableHours: 0,
+      allocationPeriods: []
+    };
+  }
+
+  const rangeStartDate = new Date(rangeStart);
+  const rangeEndDate = new Date(rangeEnd);
+  
+  let totalWeightedAllocation = 0;
+  let totalWorkDays = 0;
+  let totalAvailableHours = 0;
+  const allocationPeriods: Array<{
+    startDate: string;
+    endDate: string;
+    allocationPercent: number;
+    workDays: number;
+    availableHours: number;
+  }> = [];
+
+  // Process each allocation period
+  allocations.forEach(allocation => {
+    const allocStart = new Date(allocation.startDate);
+    const allocEnd = new Date(allocation.endDate);
+
+    // Find the overlap between allocation period and requested range
+    const overlapStart = allocStart > rangeStartDate ? allocStart : rangeStartDate;
+    const overlapEnd = allocEnd < rangeEndDate ? allocEnd : rangeEndDate;
+
+    // Only process if there's an overlap
+    if (overlapStart <= overlapEnd) {
+      const overlapStartStr = overlapStart.toISOString().split('T')[0];
+      const overlapEndStr = overlapEnd.toISOString().split('T')[0];
+      
+      const workDays = calculateWorkDays(overlapStartStr, overlapEndStr);
+      const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+
+      totalWeightedAllocation += allocation.allocationPercent * workDays;
+      totalWorkDays += workDays;
+      totalAvailableHours += availableHours;
+
+      allocationPeriods.push({
+        startDate: overlapStartStr,
+        endDate: overlapEndStr,
+        allocationPercent: allocation.allocationPercent,
+        workDays,
+        availableHours
+      });
+    }
+  });
+
+  const weightedAllocation = totalWorkDays > 0 ? totalWeightedAllocation / totalWorkDays : 0;
+
+  return {
+    weightedAllocation: Math.round(weightedAllocation * 10) / 10,
+    totalAvailableHours: Math.round(totalAvailableHours * 10) / 10,
+    allocationPeriods
+  };
 }
 
 /**
@@ -71,7 +159,7 @@ export function determineStatus(
 export function getWeekStart(dateStr: string): string {
   const date = new Date(dateStr);
   const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day; // Calculate days to previous Monday
+  const diff = day === 0 ? -6 : 1 - day;
   const monday = new Date(date);
   monday.setDate(date.getDate() + diff);
   return monday.toISOString().split('T')[0];
