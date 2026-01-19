@@ -81,3 +81,36 @@ model Worklog {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
+
+// Resource Allocation tracking for capacity planning
+model ResourceAllocation {
+  id                String   @id @default(auto()) @map("_id") @db.ObjectId
+  projectKey        String
+  accountId         String   // Jira user account ID
+  displayName       String
+  avatarUrl         String?
+  startDate         String   // YYYY-MM-DD
+  endDate           String   // YYYY-MM-DD
+  allocationPercent Int      // 0-200 (percentage)
+  notes             String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([projectKey, accountId])
+  @@index([projectKey, startDate, endDate])
+}
+
+// Weekly capacity snapshots for historical tracking
+model CapacitySnapshot {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  projectKey  String
+  weekStart   String   // Monday of the week (YYYY-MM-DD)
+  
+  // Snapshot data stored as JSON for flexibility
+  teamCapacity Json    // Array of { accountId, displayName, plannedAllocation, actualHours, availableHours, utilizationPercent, status }
+  
+  createdAt   DateTime @default(now())
+
+  @@index([projectKey, weekStart])
+}

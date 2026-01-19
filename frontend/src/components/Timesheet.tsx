@@ -3,6 +3,11 @@
 import { useState, useEffect, useTransition } from 'react';
 import { getProjectWorklogs, TimesheetData, WorklogEntry } from '@/actions/timesheet';
 import RecentActivity from './RecentActivity';
+import { getCurrentAllocations, createAllocation, updateAllocation, ResourceAllocation } from '@/lib/allocation-api';
+import AllocationInput from './allocation/AllocationInput';
+import CapacityIndicator from './allocation/CapacityIndicator';
+import TeamCapacitySummary from './allocation/TeamCapacitySummary';
+import { calculateWorkDays, calculateAvailableHours, calculateUtilization, determineStatus, getWeekStart, getWeekEnd, getStatusConfig } from '@/lib/capacity-utils';
 
 export default function Timesheet({ projectKey, initialOpen = false }: { projectKey: string, initialOpen?: boolean }) {
   const [isOpen, setIsOpen] = useState(initialOpen);
@@ -18,6 +23,10 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
     entries: WorklogEntry[];
   } | null>(null);
   const [expandedActivityId, setExpandedActivityId] = useState<string | null>(null);
+  
+  // Allocation state
+  const [allocations, setAllocations] = useState<Map<string, ResourceAllocation>>(new Map());
+  const [isLoadingAllocations, setIsLoadingAllocations] = useState(false);
 
   // Reset drill-down when modal closes or changes
   useEffect(() => {
@@ -97,12 +106,35 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
     }
   }, [isOpen]);
 
+  const loadAllocations = async () => {
+    setIsLoadingAllocations(true);
+    try {
+      const range = getDateRange();
+      const weekStart = getWeekStart(range.startDate);
+      const weekEnd = getWeekEnd(range.endDate);
+      const allocs = await getCurrentAllocations(projectKey, weekStart, weekEnd);
+      
+      const allocMap = new Map<string, ResourceAllocation>();
+      allocs.forEach(alloc => {
+        allocMap.set(alloc.accountId, alloc);
+      });
+      setAllocations(allocMap);
+    } catch (error) {
+      console.error('Failed to load allocations:', error);
+    } finally {
+      setIsLoadingAllocations(false);
+    }
+  };
+
   const loadData = () => {
     startTransition(async () => {
       const range = getDateRange();
       const result = await getProjectWorklogs(projectKey, range);
       setData(result.data);
       setBaseUrl(result.baseUrl);
+      
+      // Load allocations
+      await loadAllocations();
     });
   };
 
@@ -352,6 +384,31 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                     background: 'white',
                     borderRight: '2px solid #dfe1e6'
                   }}>Total</th>
+                  <th style={{ 
+                    textAlign: 'center', 
+                    padding: '10px', 
+                    borderBottom: '2px solid #dfe1e6', 
+                    whiteSpace: 'nowrap',
+                    minWidth: '120px',
+                    background: '#f4f5f7'
+                  }}>Allocation</th>
+                  <th style={{ 
+                    textAlign: 'center', 
+                    padding: '10px', 
+                    borderBottom: '2px solid #dfe1e6', 
+                    whiteSpace: 'nowrap',
+                    minWidth: '150px',
+                    background: '#f4f5f7'
+                  }}>Capacity</th>
+                  <th style={{ 
+                    textAlign: 'center', 
+                    padding: '10px', 
+                    borderBottom: '2px solid #dfe1e6', 
+                    whiteSpace: 'nowrap',
+                    minWidth: '100px',
+                    background: '#f4f5f7',
+                    borderRight: '2px solid #dfe1e6'
+                  }}>Status</th>
                   {dates.map(date => {
                     const isToday = date === todayStr;
                     return (
@@ -419,6 +476,123 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                         }}>
                           {formatSeconds(userTotal)}
                         </td>
+                        
+                        {/* Allocation Column */}
+                        <td style={{ 
+                          textAlign: 'center', 
+                          padding: '10px', 
+                          background: 'white',
+                          borderBottom: '1px solid #eee'
+                        }}>
+                          <AllocationInput
+                            accountId={user.accountId}
+                            displayName={user.displayName}
+                            currentAllocation={allocations.get(user.accountId)?.allocationPercent || 0}
+                            onSave={async (percent) => {
+                              const existing = allocations.get(user.accountId);
+                              if (existing) {
+                                await updateAllocation(projectKey, existing.id, { allocationPercent: percent });
+                              } else {
+                                await createAllocation(projectKey, {
+                                  accountId: user.accountId,
+                                  displayName: user.displayName,
+                                  avatarUrl: user.avatarUrl,
+                                  startDate: getWeekStart(startDate),
+                                  endDate: getWeekEnd(endDate),
+                                  allocationPercent: percent
+                                });
+                              }
+                              await loadAllocations();
+                            }}
+                          />
+                        </td>
+
+                        {/* Capacity Column */}
+                        <td style={{ 
+                          textAlign: 'center', 
+                          padding: '10px', 
+                          background: 'white',
+                          borderBottom: '1px solid #eee'
+                        }}>
+                          {(() => {
+                            const allocation = allocations.get(user.accountId);
+                            if (!allocation) return <span style={{ color: '#999' }}>-</span>;
+                            
+                            const workDays = calculateWorkDays(startDate, endDate);
+                            const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+                            const actualHours = userTotal / 3600;
+                            const utilization = calculateUtilization(actualHours, availableHours);
+                            const status = determineStatus(utilization, allocation.allocationPercent);
+                            
+                            return (
+                              <CapacityIndicator
+                                availableHours={availableHours}
+                                actualHours={actualHours}
+                                utilizationPercent={utilization}
+                                status={status}
+                              />
+                            );
+                          })()}
+                        </td>
+
+                        {/* Status Column */}
+                        <td style={{ 
+                          textAlign: 'center', 
+                          padding: '10px', 
+                          background: (() => {
+                            const allocation = allocations.get(user.accountId);
+                            if (!allocation) return 'white';
+                            
+                            const workDays = calculateWorkDays(startDate, endDate);
+                            const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+                            const actualHours = userTotal / 3600;
+                            const utilization = calculateUtilization(actualHours, availableHours);
+                            const status = determineStatus(utilization, allocation.allocationPercent);
+                            
+                            return getStatusConfig(status).bgColor;
+                          })(),
+                          borderBottom: '1px solid #eee',
+                          borderLeft: (() => {
+                            const allocation = allocations.get(user.accountId);
+                            if (!allocation) return 'none';
+                            
+                            const workDays = calculateWorkDays(startDate, endDate);
+                            const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+                            const actualHours = userTotal / 3600;
+                            const utilization = calculateUtilization(actualHours, availableHours);
+                            const status = determineStatus(utilization, allocation.allocationPercent);
+                            
+                            return `4px solid ${getStatusConfig(status).borderColor}`;
+                          })(),
+                          borderRight: '2px solid #dfe1e6'
+                        }}>
+                          {(() => {
+                            const allocation = allocations.get(user.accountId);
+                            if (!allocation) return <span style={{ color: '#999' }}>-</span>;
+                            
+                            const workDays = calculateWorkDays(startDate, endDate);
+                            const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+                            const actualHours = userTotal / 3600;
+                            const utilization = calculateUtilization(actualHours, availableHours);
+                            const status = determineStatus(utilization, allocation.allocationPercent);
+                            
+                            const config = getStatusConfig(status);
+                            return (
+                              <span style={{
+                                fontSize: '12px',
+                                fontWeight: 600,
+                                color: config.color,
+                                padding: '4px 8px',
+                                background: config.bgColor,
+                                borderRadius: '4px',
+                                display: 'inline-block'
+                              }}>
+                                {config.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        
                         {dates.map(date => {
                           const entry = data?.[date]?.[user.accountId];
                           const seconds = entry?.totalSeconds || 0;
@@ -456,6 +630,93 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
               </tbody>
             </table>
           </div>
+
+          {/* Team Capacity Summary */}
+          {data && allocations.size > 0 && (
+            <TeamCapacitySummary
+              totalCapacity={(() => {
+                let total = 0;
+                const workDays = calculateWorkDays(startDate, endDate);
+                allocations.forEach(alloc => {
+                  total += calculateAvailableHours(alloc.allocationPercent, workDays);
+                });
+                return total;
+              })()}
+              totalActual={(() => {
+                let total = 0;
+                users.forEach(user => {
+                  dates.forEach(date => {
+                    const entry = data?.[date]?.[user.accountId];
+                    total += (entry?.totalSeconds || 0) / 3600;
+                  });
+                });
+                return total;
+              })()}
+              avgUtilization={(() => {
+                const workDays = calculateWorkDays(startDate, endDate);
+                let totalUtil = 0;
+                let count = 0;
+                
+                users.forEach(user => {
+                  const allocation = allocations.get(user.accountId);
+                  if (allocation) {
+                    const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+                    let actualHours = 0;
+                    dates.forEach(date => {
+                      const entry = data?.[date]?.[user.accountId];
+                      actualHours += (entry?.totalSeconds || 0) / 3600;
+                    });
+                    totalUtil += calculateUtilization(actualHours, availableHours);
+                    count++;
+                  }
+                });
+                
+                return count > 0 ? totalUtil / count : 0;
+              })()}
+              overloadedCount={(() => {
+                const workDays = calculateWorkDays(startDate, endDate);
+                let count = 0;
+                
+                users.forEach(user => {
+                  const allocation = allocations.get(user.accountId);
+                  if (allocation) {
+                    const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+                    let actualHours = 0;
+                    dates.forEach(date => {
+                      const entry = data?.[date]?.[user.accountId];
+                      actualHours += (entry?.totalSeconds || 0) / 3600;
+                    });
+                    const utilization = calculateUtilization(actualHours, availableHours);
+                    const status = determineStatus(utilization, allocation.allocationPercent);
+                    if (status === 'overloaded') count++;
+                  }
+                });
+                
+                return count;
+              })()}
+              underloadedCount={(() => {
+                const workDays = calculateWorkDays(startDate, endDate);
+                let count = 0;
+                
+                users.forEach(user => {
+                  const allocation = allocations.get(user.accountId);
+                  if (allocation) {
+                    const availableHours = calculateAvailableHours(allocation.allocationPercent, workDays);
+                    let actualHours = 0;
+                    dates.forEach(date => {
+                      const entry = data?.[date]?.[user.accountId];
+                      actualHours += (entry?.totalSeconds || 0) / 3600;
+                    });
+                    const utilization = calculateUtilization(actualHours, availableHours);
+                    const status = determineStatus(utilization, allocation.allocationPercent);
+                    if (status === 'underloaded') count++;
+                  }
+                });
+                
+                return count;
+              })()}
+            />
+          )}
 
           {/* Details Modal */}
           {selectedCell && (

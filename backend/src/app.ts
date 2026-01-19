@@ -6,6 +6,10 @@ import { ProjectRepository } from './repositories/ProjectRepository.js';
 import { ProjectService } from './services/projectService.js';
 import { ProjectController } from './controllers/ProjectController.js';
 import { createProjectRoutes } from './routes/projectRoutes.js';
+import { AllocationRepository } from './repositories/AllocationRepository.js';
+import { AllocationService } from './services/allocationService.js';
+import { AllocationController } from './controllers/AllocationController.js';
+import { createAllocationRoutes } from './routes/allocationRoutes.js';
 import { swaggerSpec } from './swagger.js';
 import { logger } from './utils/logger.js';
 
@@ -26,6 +30,10 @@ export function createApp(): Application {
   const projectRepository = new ProjectRepository(prisma);
   const projectService = new ProjectService(projectRepository);
   const projectController = new ProjectController(projectService);
+
+  const allocationRepository = new AllocationRepository(prisma);
+  const allocationService = new AllocationService(allocationRepository);
+  const allocationController = new AllocationController(allocationService);
 
   // Swagger API Documentation
   app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
@@ -61,6 +69,9 @@ export function createApp(): Application {
   // Register routes
   const projectRoutes = createProjectRoutes(projectController);
   app.use(projectRoutes);
+
+  const allocationRoutes = createAllocationRoutes(allocationController);
+  app.use('/api/projects/:key/allocations', allocationRoutes);
 
   // Global error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
