@@ -527,6 +527,8 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                               });
                               await loadAllocations();
                             }}
+                            projectKey={projectKey}
+                            onAllocationChange={loadAllocations}
                           />
                         </td>
 

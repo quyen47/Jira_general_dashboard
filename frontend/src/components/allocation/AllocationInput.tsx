@@ -1,12 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import AllocationListModal from './AllocationListModal';
 
 interface AllocationInputProps {
   accountId: string;
+  projectKey: string;
   displayName: string;
   currentAllocation?: number;
   onSave: (percent: number) => Promise<void>;
+  onAllocationChange: () => void;
   disabled?: boolean;
 }
 
@@ -16,15 +19,25 @@ interface AllocationInputProps {
  */
 export default function AllocationInput({
   accountId,
+  projectKey,
   displayName,
   currentAllocation = 0,
   onSave,
+  onAllocationChange,
   disabled = false
 }: AllocationInputProps) {
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [value, setValue] = useState(currentAllocation.toString());
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sync value with currentAllocation when it changes (e.g., after save)
+  useEffect(() => {
+    if (!isEditing) {
+      setValue(currentAllocation.toString());
+    }
+  }, [currentAllocation, isEditing]);
 
   const handleSave = async () => {
     const numValue = parseInt(value, 10);
@@ -103,45 +116,82 @@ export default function AllocationInput({
   }
 
   return (
-    <button
-      onClick={() => !disabled && setIsEditing(true)}
-      disabled={disabled}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        padding: '4px 8px',
-        background: disabled ? '#F4F5F7' : '#FAFBFC',
-        border: '1px solid #DFE1E6',
-        borderRadius: '3px',
-        cursor: disabled ? 'not-allowed' : 'pointer',
-        fontSize: '14px',
-        fontWeight: 600,
-        color: disabled ? '#A5ADBA' : '#172B4D',
-        transition: 'all 0.2s',
-      }}
-      onMouseEnter={(e) => {
-        if (!disabled) {
-          e.currentTarget.style.background = '#EBECF0';
-          e.currentTarget.style.borderColor = '#B3BAC5';
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!disabled) {
-          e.currentTarget.style.background = '#FAFBFC';
-          e.currentTarget.style.borderColor = '#DFE1E6';
-        }
-      }}
-    >
-      <span>{currentAllocation}%</span>
-      {!disabled && (
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path
-            d="M10.586 1.586a2 2 0 112.828 2.828l-8 8a2 2 0 01-.828.586l-2.828.828.828-2.828a2 2 0 01.586-.828l8-8z"
-            fill="#6B778C"
-          />
-        </svg>
-      )}
-    </button>
+    <>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+        <button
+          onClick={() => !disabled && setIsEditing(true)}
+          disabled={disabled}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            padding: '4px 8px',
+            background: disabled ? '#F4F5F7' : '#FAFBFC',
+            border: '1px solid #DFE1E6',
+            borderRadius: '3px',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            fontSize: '14px',
+            fontWeight: 600,
+            color: disabled ? '#A5ADBA' : '#172B4D',
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            if (!disabled) {
+              e.currentTarget.style.background = '#EBECF0';
+              e.currentTarget.style.borderColor = '#B3BAC5';
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!disabled) {
+              e.currentTarget.style.background = '#FAFBFC';
+              e.currentTarget.style.borderColor = '#DFE1E6';
+            }
+          }}
+        >
+          <span>{currentAllocation}%</span>
+          {!disabled && (
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path
+                d="M10.586 1.586a2 2 0 112.828 2.828l-8 8a2 2 0 01-.828.586l-2.828.828.828-2.828a2 2 0 01.586-.828l8-8z"
+                fill="#6B778C"
+              />
+            </svg>
+          )}
+        </button>
+        
+        {!disabled && (
+          <button
+            onClick={() => setIsModalOpen(true)}
+            title="Manage Allocations"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              color: '#6B778C',
+              opacity: 0.7
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '0.7'}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+        )}
+      </div>
+
+      <AllocationListModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        accountId={accountId}
+        projectKey={projectKey}
+        displayName={displayName}
+        onAllocationChange={onAllocationChange}
+      />
+    </>
   );
 }
