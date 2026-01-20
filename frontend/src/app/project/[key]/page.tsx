@@ -9,6 +9,7 @@ import ProjectOverview from '@/components/ProjectOverview';
 import Timesheet from '@/components/Timesheet';
 import { getProjectTotalHours } from '@/actions/timesheet';
 import RecentActivity from '@/components/RecentActivity';
+import ReportGenerator from '@/components/ReportGenerator';
 
 export default async function ProjectPage({
     params,
@@ -167,6 +168,8 @@ export default async function ProjectPage({
       <Timesheet projectKey={key} initialOpen={true} />
 
       <FilterManager projectKey={key} baseUrl={baseUrl} />
+
+      <ReportGenerator projectKey={key} baseUrl={baseUrl} />
 
       <RecentActivity projectKey={key} baseUrl={baseUrl} />
 
