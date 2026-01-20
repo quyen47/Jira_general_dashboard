@@ -427,13 +427,15 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                   }}>Status</th>
                   {dates.map((date, index) => {
                     const isToday = date === todayStr;
+                    const dateObj = new Date(date);
+                    const isWeekend = dateObj.getUTCDay() === 0 || dateObj.getUTCDay() === 6;
                     return (
                       <th key={date} style={{ 
                         textAlign: 'center', 
                         padding: '10px', 
                         borderBottom: '2px solid #dfe1e6', 
                         minWidth: '80px',
-                        background: isToday ? '#e3fcef' : 'transparent' // Highlight today
+                        background: isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'transparent')
                       }}>
                         {formatDate(date)}
                       </th>
@@ -626,6 +628,8 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                           const entry = data?.[date]?.[user.accountId];
                           const seconds = entry?.totalSeconds || 0;
                           const isToday = date === todayStr;
+                          const dateObj = new Date(date);
+                          const isWeekend = dateObj.getUTCDay() === 0 || dateObj.getUTCDay() === 6;
                           
                           return (
                             <td 
@@ -643,7 +647,7 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                                 textAlign: 'center', 
                                 padding: '10px',
                                 cursor: seconds > 0 ? 'pointer' : 'default',
-                                background: seconds > 0 ? (selectedCell?.date === formatDate(date) && selectedCell?.authorName === user.displayName ? '#deebff' : isToday ? '#e3fcef' : 'transparent') : (isToday ? '#e3fcef' : 'transparent'),
+                                background: seconds > 0 ? (selectedCell?.date === formatDate(date) && selectedCell?.authorName === user.displayName ? '#deebff' : isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'transparent')) : (isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'transparent')),
                                 color: seconds > 0 ? '#0052cc' : '#ccc',
                                 borderBottom: '1px solid #eee'
                               }}
