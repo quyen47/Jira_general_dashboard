@@ -118,46 +118,21 @@ export default function AllocationInput({
   return (
     <>
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-        <button
-          onClick={() => !disabled && setIsEditing(true)}
-          disabled={disabled}
+        <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '4px',
             padding: '4px 8px',
-            background: disabled ? '#F4F5F7' : '#FAFBFC',
-            border: '1px solid #DFE1E6',
+            background: 'transparent',
             borderRadius: '3px',
-            cursor: disabled ? 'not-allowed' : 'pointer',
             fontSize: '14px',
             fontWeight: 600,
-            color: disabled ? '#A5ADBA' : '#172B4D',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            if (!disabled) {
-              e.currentTarget.style.background = '#EBECF0';
-              e.currentTarget.style.borderColor = '#B3BAC5';
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!disabled) {
-              e.currentTarget.style.background = '#FAFBFC';
-              e.currentTarget.style.borderColor = '#DFE1E6';
-            }
+            color: '#172B4D',
           }}
         >
           <span>{currentAllocation}%</span>
-          {!disabled && (
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <path
-                d="M10.586 1.586a2 2 0 112.828 2.828l-8 8a2 2 0 01-.828.586l-2.828.828.828-2.828a2 2 0 01.586-.828l8-8z"
-                fill="#6B778C"
-              />
-            </svg>
-          )}
-        </button>
+        </div>
         
         {!disabled && (
           <button

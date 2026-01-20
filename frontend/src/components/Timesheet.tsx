@@ -458,12 +458,9 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                     });
                     
                     return (
-                      <tr key={user.accountId}>
+                      <tr key={user.accountId} style={{ height: '60px' }}>
                         <td style={{ 
                           padding: '10px', 
-                          display: 'flex', 
-                          alignItems: 'center', 
-                          gap: '8px',
                           borderBottom: '1px solid #eee',
                           position: 'sticky',
                           left: 0,
@@ -473,10 +470,12 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                           minWidth: '200px',
                           width: '200px'
                         }}>
-                          {user.avatarUrl && (
-                            <img src={user.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />
-                          )}
-                          <span style={{ fontWeight: 500, color: '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>{user.displayName}</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '100%' }}>
+                            {user.avatarUrl && (
+                              <img src={user.avatarUrl} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />
+                            )}
+                            <span style={{ fontWeight: 500, color: '#172b4d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px' }}>{user.displayName}</span>
+                          </div>
                         </td>
                         <td style={{ 
                           textAlign: 'center', 

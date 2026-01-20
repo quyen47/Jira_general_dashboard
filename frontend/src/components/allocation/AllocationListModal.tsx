@@ -34,6 +34,7 @@ export default function AllocationListModal({
   // Form state for new/editing allocation
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     startDate: '',
     endDate: '',
@@ -131,18 +132,23 @@ export default function AllocationListModal({
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this allocation?')) return;
+  const handleDeleteClick = (id: string) => {
+    setDeletingId(id);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingId) return;
     
     setLoading(true);
     try {
-      await deleteAllocation(projectKey, id);
+      await deleteAllocation(projectKey, deletingId);
       await fetchAllocations();
       onAllocationChange();
     } catch (err) {
       setError('Failed to delete allocation');
     } finally {
       setLoading(false);
+      setDeletingId(null);
     }
   };
 
@@ -281,33 +287,69 @@ export default function AllocationListModal({
                             </span>
                           </td>
                           <td style={{ padding: '12px 0 12px 8px', textAlign: 'right', borderBottom: '1px solid #DFE1E6' }}>
-                            <button
-                              onClick={() => startEdit(alloc)}
-                              style={{ 
-                                background: 'none', 
-                                border: 'none', 
-                                color: '#0052CC', 
-                                cursor: 'pointer',
-                                marginRight: '12px',
-                                fontSize: '14px',
-                                padding: '4px'
-                              }}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(alloc.id)}
-                              style={{ 
-                                background: 'none', 
-                                border: 'none', 
-                                color: '#DE350B', 
-                                cursor: 'pointer',
-                                fontSize: '14px',
-                                padding: '4px'
-                              }}
-                            >
-                              Delete
-                            </button>
+                            {deletingId === alloc.id ? (
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                                <span style={{ fontSize: '12px', color: '#DE350B' }}>Sure?</span>
+                                <button
+                                  onClick={handleConfirmDelete}
+                                  style={{
+                                    background: '#DE350B',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '3px',
+                                    padding: '4px 8px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px'
+                                  }}
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  onClick={() => setDeletingId(null)}
+                                  style={{
+                                    background: '#EBECF0',
+                                    color: '#42526E',
+                                    border: 'none',
+                                    borderRadius: '3px',
+                                    padding: '4px 8px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px'
+                                  }}
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => startEdit(alloc)}
+                                  style={{ 
+                                    background: 'none', 
+                                    border: 'none', 
+                                    color: '#0052CC', 
+                                    cursor: 'pointer',
+                                    marginRight: '12px',
+                                    fontSize: '14px',
+                                    padding: '4px'
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteClick(alloc.id)}
+                                  style={{ 
+                                    background: 'none', 
+                                    border: 'none', 
+                                    color: '#DE350B', 
+                                    cursor: 'pointer',
+                                    fontSize: '14px',
+                                    padding: '4px'
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       ))}
