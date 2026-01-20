@@ -171,6 +171,7 @@ export async function generateWorklogReport(
 
   // Calculate hours per issue from worklogs
   const issueHours = new Map<string, Map<string, number>>(); // issueKey -> (accountId -> hours)
+  const authorNames = new Map<string, string>(); // accountId -> display name
   const dailyHoursMap = new Map<string, number>(); // date -> total hours
   const teamMembersSet = new Set<string>();
 
@@ -184,6 +185,12 @@ export async function generateWorklogReport(
       if (worklogDate && worklogDate >= startDate && worklogDate <= endDate) {
         const hours = (worklog.timeSpentSeconds || 0) / 3600;
         const accountId = worklog.author?.accountId || 'unknown';
+        const authorName = worklog.author?.displayName || 'Unassigned';
+        
+        // Track author name
+        if (!authorNames.has(accountId)) {
+          authorNames.set(accountId, authorName);
+        }
         
         // Track by issue and assignee
         if (!issueHours.has(issue.key)) {
@@ -212,7 +219,7 @@ export async function generateWorklogReport(
 
     const assigneeHours = issueHours.get(issue.key)!;
     const assignees = Array.from(assigneeHours.entries()).map(([accountId, hours]) => ({
-      name: issue.fields.assignee?.displayName || 'Unassigned',
+      name: authorNames.get(accountId) || 'Unassigned',
       accountId,
       hours: Math.round(hours * 10) / 10
     }));

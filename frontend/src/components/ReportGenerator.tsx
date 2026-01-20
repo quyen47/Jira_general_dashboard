@@ -585,7 +585,7 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
                         <div style={{ minWidth: '60px', textAlign: 'center' }}>Type</div>
                         <div style={{ minWidth: '100px' }}>Key</div>
                         <div style={{ flex: 1 }}>Summary</div>
-                        <div style={{ minWidth: '100px' }}>Assignees</div>
+                        <div style={{ minWidth: '100px' }}>Contributors</div>
                         <div style={{ minWidth: '80px' }}>Status</div>
                         <div style={{ minWidth: '60px', textAlign: 'right' }}>Hours</div>
                       </div>
