@@ -214,11 +214,6 @@ export default function PortfolioSummary({ projects }: { projects: Project[] }) 
               />
             </div>
 
-            {/* Portfolio Insights Panel */}
-            <div style={{ marginBottom: '30px' }}>
-              <InsightsPanel alerts={portfolioInsights.allAlerts.slice(0, 10)} />
-            </div>
-
             <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />
           </>
         )}
