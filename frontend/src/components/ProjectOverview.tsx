@@ -4,6 +4,9 @@ import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { getOverview, saveOverview as apiSaveOverview } from '@/lib/api';
 import BurnDownChart from './BurnDownChart';
+import { calculateScheduleInsights, calculateBudgetInsights, generateAlerts } from '@/lib/insights';
+import MetricCard from './MetricCard';
+import InsightsPanel from './InsightsPanel';
 
 // --- Types ---
 interface OverviewData {
@@ -421,6 +424,85 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
 
         {isOpen && (
             <div style={{ padding: '20px' }}>
+                
+                {/* Insights Dashboard Section */}
+                {(() => {
+                  // Calculate insights
+                  const scheduleInsights = calculateScheduleInsights(
+                    percentComplete,
+                    data.overview.planStartDate,
+                    data.overview.planEndDate,
+                    data.overview.projectStatus
+                  );
+
+                  const budgetInsights = calculateBudgetInsights(
+                    totalBudget,
+                    totalSpent,
+                    data.overview.planStartDate,
+                    data.overview.planEndDate
+                  );
+
+                  const alerts = generateAlerts(scheduleInsights, budgetInsights, epics);
+
+                  // Determine metric card statuses
+                  const scheduleStatus = scheduleInsights.status === 'ahead' ? 'success' :
+                                       scheduleInsights.status === 'overtime' ? 'danger' :
+                                       scheduleInsights.status === 'behind' ? 'danger' : 'warning';
+
+                  const budgetStatus = budgetInsights.status === 'healthy' ? 'success' :
+                                     budgetInsights.status === 'over-budget' ? 'danger' : 'warning';
+
+                  return (
+                    <>
+                      {/* Metric Cards */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                        <MetricCard
+                          title="Schedule"
+                          status={scheduleStatus}
+                          mainValue={`${scheduleInsights.percentComplete.toFixed(0)}%`}
+                          subValue={`${scheduleInsights.percentTimeElapsed.toFixed(0)}% time elapsed`}
+                          icon={scheduleInsights.status === 'ahead' ? '🟢' : 
+                                scheduleInsights.status === 'overtime' ? '🚨' : 
+                                scheduleInsights.status === 'behind' ? '🔴' : '🟡'}
+                        />
+                        <MetricCard
+                          title="Budget"
+                          status={budgetStatus}
+                          mainValue={`${budgetInsights.percentSpent.toFixed(0)}%`}
+                          subValue={`${budgetInsights.remainingBudget.toFixed(0)}h remaining`}
+                          icon={budgetInsights.status === 'healthy' ? '🟢' : 
+                                budgetInsights.status === 'over-budget' ? '🚨' : '🟡'}
+                        />
+                        <MetricCard
+                          title="Runway"
+                          status={budgetInsights.weeksOfRunway < 4 ? 'danger' : 
+                                  budgetInsights.weeksOfRunway < 8 ? 'warning' : 'success'}
+                          mainValue={budgetInsights.weeksOfRunway < 999 ? `${budgetInsights.weeksOfRunway.toFixed(1)}w` : '∞'}
+                          subValue={`${budgetInsights.weeklyBurnRate.toFixed(0)}h/week burn`}
+                          icon="⏱️"
+                        />
+                        <MetricCard
+                          title="Completion"
+                          status={scheduleInsights.status === 'ahead' ? 'success' : 'info'}
+                          mainValue={scheduleInsights.projectedEndDate ? 
+                                    new Date(scheduleInsights.projectedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 
+                                    '-'}
+                          subValue={scheduleInsights.daysAheadBehind !== 0 ? 
+                                   `${Math.abs(scheduleInsights.daysAheadBehind)}d ${scheduleInsights.daysAheadBehind > 0 ? 'ahead' : 'behind'}` : 
+                                   'On track'}
+                          icon="🎯"
+                        />
+                      </div>
+
+                      {/* Insights Panel */}
+                      <div style={{ marginBottom: '30px' }}>
+                        <InsightsPanel alerts={alerts} />
+                      </div>
+                    </>
+                  );
+                })()}
+
+                <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />
                 
                 {/* 1. General & Health/Progress Split */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '30px' }}>

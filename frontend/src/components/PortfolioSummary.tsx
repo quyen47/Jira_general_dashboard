@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer,  Tooltip, Legend } from 'recharts';
+import { calculatePortfolioInsights } from '@/lib/portfolioInsights';
+import { getAllProjectsOverview } from '@/actions/portfolio';
+import MetricCard from './MetricCard';
+import InsightsPanel from './InsightsPanel';
 
 interface Project {
   key: string;
@@ -32,6 +36,8 @@ const DEFAULT_OVERVIEW = {
 
 export default function PortfolioSummary({ projects }: { projects: Project[] }) {
   const [data, setData] = useState<AggregatedData | null>(null);
+  const [portfolioInsights, setPortfolioInsights] = useState<any>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(true);
 
   useEffect(() => {
     const aggr: AggregatedData = {
@@ -101,6 +107,26 @@ export default function PortfolioSummary({ projects }: { projects: Project[] }) 
     setData(aggr);
   }, [projects]);
 
+  // Fetch and calculate portfolio insights
+  useEffect(() => {
+    async function loadPortfolioInsights() {
+      setIsLoadingInsights(true);
+      try {
+        const projectsData = await getAllProjectsOverview();
+        const insights = calculatePortfolioInsights(projectsData);
+        setPortfolioInsights(insights);
+      } catch (error) {
+        console.error('Error loading portfolio insights:', error);
+      } finally {
+        setIsLoadingInsights(false);
+      }
+    }
+    
+    if (projects.length > 0) {
+      loadPortfolioInsights();
+    }
+  }, [projects]);
+
   if (!data) return null;
 
   // Chart Rendering Helpers
@@ -148,6 +174,54 @@ export default function PortfolioSummary({ projects }: { projects: Project[] }) 
         Portfolio Summary
       </div>
       <div style={{ background: 'white', padding: '20px', borderRadius: '0 0 4px 4px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
+        
+        {/* Portfolio Insights Dashboard */}
+        {!isLoadingInsights && portfolioInsights && (
+          <>
+            {/* Metric Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+              <MetricCard
+                title="Health"
+                status={portfolioInsights.health.green > portfolioInsights.health.red ? 'success' : 
+                        portfolioInsights.health.red > 0 ? 'danger' : 'warning'}
+                mainValue={`${Math.round((portfolioInsights.health.green / portfolioInsights.totalProjects) * 100)}%`}
+                subValue={`${portfolioInsights.health.green} of ${portfolioInsights.totalProjects} healthy`}
+                icon="🟢"
+              />
+              <MetricCard
+                title="At Risk"
+                status={portfolioInsights.atRiskProjects.length === 0 ? 'success' : 
+                        portfolioInsights.atRiskProjects.length > 3 ? 'danger' : 'warning'}
+                mainValue={portfolioInsights.atRiskProjects.length.toString()}
+                subValue={`${portfolioInsights.atRiskProjects.length === 0 ? 'No' : portfolioInsights.atRiskProjects.length} project${portfolioInsights.atRiskProjects.length !== 1 ? 's' : ''} need attention`}
+                icon={portfolioInsights.atRiskProjects.length === 0 ? '✅' : '🔴'}
+              />
+              <MetricCard
+                title="Budget"
+                status={portfolioInsights.budgetPerformance.healthy > portfolioInsights.budgetPerformance.overBudget ? 'success' : 
+                        portfolioInsights.budgetPerformance.overBudget > 0 ? 'danger' : 'warning'}
+                mainValue={`${portfolioInsights.budgetPerformance.healthy}/${portfolioInsights.totalProjects}`}
+                subValue={`${portfolioInsights.budgetPerformance.overBudget} over budget`}
+                icon={portfolioInsights.budgetPerformance.overBudget === 0 ? '🟢' : '🟡'}
+              />
+              <MetricCard
+                title="Schedule"
+                status={portfolioInsights.schedulePerformance.ahead > portfolioInsights.schedulePerformance.behind ? 'success' : 
+                        portfolioInsights.schedulePerformance.overtime > 0 ? 'danger' : 'warning'}
+                mainValue={`${Math.round((portfolioInsights.schedulePerformance.ahead / portfolioInsights.totalProjects) * 100)}%`}
+                subValue={`${portfolioInsights.schedulePerformance.ahead} ahead, ${portfolioInsights.schedulePerformance.behind} behind`}
+                icon={portfolioInsights.schedulePerformance.ahead > portfolioInsights.schedulePerformance.behind ? '🟢' : '🟡'}
+              />
+            </div>
+
+            {/* Portfolio Insights Panel */}
+            <div style={{ marginBottom: '30px' }}>
+              <InsightsPanel alerts={portfolioInsights.allAlerts.slice(0, 10)} />
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />
+          </>
+        )}
         
         {/* Row 1 */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
