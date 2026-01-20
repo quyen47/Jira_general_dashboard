@@ -35,6 +35,7 @@ export interface DailyHours {
 export interface WorklogReport {
   summary: ReportSummary;
   issues: ReportIssue[];
+  parentMetadata?: Record<string, ReportIssue>; // Fetched parent issues without worklogs
   trends: {
     dailyHours: DailyHours[];
     velocity: number;
@@ -83,6 +84,90 @@ export async function generateWorklogReport(
   // Build issue map for parent/child relationships
   const issueMap = new Map<string, any>();
   issues.forEach(issue => issueMap.set(issue.key, issue));
+
+  // Collect all parent keys that are referenced but not in our results
+  const missingParentKeys = new Set<string>();
+  issues.forEach(issue => {
+    if (issue.fields.parent && !issueMap.has(issue.fields.parent.key)) {
+      missingParentKeys.add(issue.fields.parent.key);
+    }
+  });
+
+  // Fetch missing parent issues from Jira
+  if (missingParentKeys.size > 0) {
+    const parentKeysArray = Array.from(missingParentKeys);
+    const parentJql = `key IN (${parentKeysArray.map(k => `"${k}"`).join(',')})`;
+    
+    console.log('Fetching missing parent issues:', parentKeysArray);
+    console.log('Parent JQL:', parentJql);
+    
+    try {
+      const parentSearchResult = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
+        jql: parentJql,
+        maxResults: 100,
+        fields: [
+          'summary',
+          'issuetype',
+          'status',
+          'parent',
+          'assignee'
+        ]
+      });
+
+      console.log('Fetched parent issues:', parentSearchResult.issues?.length || 0);
+      
+      // Log detailed info about fetched parents
+      parentSearchResult.issues?.forEach(parentIssue => {
+        console.log(`Parent ${parentIssue.key}:`, {
+          summary: parentIssue.fields.summary,
+          issueType: parentIssue.fields.issuetype?.name,
+          status: parentIssue.fields.status?.name,
+          parent: parentIssue.fields.parent ? {
+            key: parentIssue.fields.parent.key,
+            summary: parentIssue.fields.parent.fields?.summary
+          } : null
+        });
+      });
+      
+      // Add parent issues to the map and create a ReportIssue representation
+      parentSearchResult.issues?.forEach(parentIssue => {
+        issueMap.set(parentIssue.key, parentIssue);
+        
+        // Also create a basic ReportIssue for the parent (without worklogs)
+        const parentReportIssue: ReportIssue = {
+          key: parentIssue.key,
+          summary: parentIssue.fields.summary || '',
+          issueType: parentIssue.fields.issuetype?.name || 'Unknown',
+          status: parentIssue.fields.status?.name || 'Unknown',
+          statusCategory: parentIssue.fields.status?.statusCategory?.key,
+          totalHours: 0,
+          assignees: [],
+          parent: parentIssue.fields.parent ? {
+            key: parentIssue.fields.parent.key,
+            summary: parentIssue.fields.parent.fields?.summary || ''
+          } : undefined
+        };
+        
+        // Store the ReportIssue version with a special key
+        (issueMap as any).set(`${parentIssue.key}_REPORT`, parentReportIssue);
+      });
+      
+      // Collect parent metadata for frontend use
+      const parentMetadata: Record<string, ReportIssue> = {};
+      parentSearchResult.issues?.forEach(parentIssue => {
+        const reportVersion = (issueMap as any).get(`${parentIssue.key}_REPORT`);
+        if (reportVersion) {
+          parentMetadata[parentIssue.key] = reportVersion;
+        }
+      });
+      
+      // Store it for later use in the return
+      (issueMap as any).set('__PARENT_METADATA__', parentMetadata);
+    } catch (error) {
+      console.error('Error fetching parent issues:', error);
+      // Don't throw - continue with what we have
+    }
+  }
 
   // Calculate hours per issue from worklogs
   const issueHours = new Map<string, Map<string, number>>(); // issueKey -> (accountId -> hours)
@@ -183,12 +268,13 @@ export async function generateWorklogReport(
     return reportIssue;
   }
 
-  // Build top-level issues (no parent or parent not in result set)
+  // Build top-level issues (no parent or parent not in result set with worklogs)
   for (const issue of issues) {
     if (processedKeys.has(issue.key)) continue;
     
-    const hasParentInSet = issue.fields.parent && issueMap.has(issue.fields.parent.key);
-    if (!hasParentInSet) {
+    // Check if parent exists AND has worklogs in this period
+    const hasParentWithWorklogs = issue.fields.parent && issueHours.has(issue.fields.parent.key);
+    if (!hasParentWithWorklogs) {
       const reportIssue = buildReportIssue(issue);
       if (reportIssue) {
         reportIssues.push(reportIssue);
@@ -243,6 +329,11 @@ export async function generateWorklogReport(
     ? new Date(Date.now() + daysToComplete * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
     : null;
 
+  // Get parent metadata if it exists
+  const parentMetadata = (issueMap as any).get('__PARENT_METADATA__') || {};
+  
+  console.log('Parent metadata keys:', Object.keys(parentMetadata));
+
   return {
     summary: {
       totalHours: Math.round(totalHours * 10) / 10,
@@ -253,6 +344,7 @@ export async function generateWorklogReport(
       overdueIssues
     },
     issues: reportIssues,
+    parentMetadata,
     trends: {
       dailyHours,
       velocity: Math.round(velocity * 100) / 100,

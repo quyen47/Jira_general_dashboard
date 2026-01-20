@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { generateWorklogReport, WorklogReport, ReportIssue } from '@/actions/reports';
+import TimeDistributionChart from './charts/TimeDistributionChart';
+import TeamContributionChart from './charts/TeamContributionChart';
+import IssueTypeBreakdown from './charts/IssueTypeBreakdown';
 
 interface ReportGeneratorProps {
   projectKey: string;
@@ -17,6 +20,12 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [preset, setPreset] = useState<'thisWeek' | 'lastWeek' | 'thisMonth' | 'lastMonth' | 'custom'>('thisWeek');
+
+  // Drill-down filter state
+  const [filterMember, setFilterMember] = useState<string | null>(null);
+  const [filterType, setFilterType] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'overview' | 'charts'>('overview');
+  const [groupingLevel, setGroupingLevel] = useState(0); // 0 = no grouping, 1+ = levels of parent grouping
 
   // Initialize with current week
   useEffect(() => {
@@ -81,6 +90,135 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
       handleGenerate();
     }
   }, [isOpen]);
+
+  // Filter issues by member or type
+  function getFilteredIssues(issues: ReportIssue[], memberName: string | null, issueType: string | null): ReportIssue[] {
+    if (!memberName && !issueType) return issues;
+
+    function matchesFilter(issue: ReportIssue): boolean {
+      const memberMatch = !memberName || issue.assignees.some(a => a.name === memberName);
+      const typeMatch = !issueType || issue.issueType === issueType;
+      return memberMatch && typeMatch;
+    }
+
+    function filterRecursive(issue: ReportIssue): ReportIssue | null {
+      const matches = matchesFilter(issue);
+      const filteredChildren = issue.children
+        ?.map(child => filterRecursive(child))
+        .filter((child): child is ReportIssue => child !== null);
+
+      if (matches || (filteredChildren && filteredChildren.length > 0)) {
+        return {
+          ...issue,
+          children: filteredChildren
+        };
+      }
+
+      return null;
+    }
+
+    return issues
+      .map(issue => filterRecursive(issue))
+      .filter((issue): issue is ReportIssue => issue !== null);
+  }
+
+  // Recursively group issues by parent, level by level
+  function groupIssuesByParentLevel(issues: ReportIssue[], level: number): ReportIssue[] {
+    if (level === 0) return issues;
+
+    const parentMap = new Map<string, ReportIssue[]>();
+    const noParentIssues: ReportIssue[] = [];
+    const allIssuesMap = new Map<string, ReportIssue>();
+
+    // Build a map of all issues for lookup (including nested children)
+    function buildIssueMap(issueList: ReportIssue[]) {
+      issueList.forEach(issue => {
+        allIssuesMap.set(issue.key, issue);
+        if (issue.children) {
+          buildIssueMap(issue.children);
+        }
+      });
+    }
+    buildIssueMap(issues);
+    
+    // Merge parent metadata from report (fetched parents without worklogs)
+    if (report?.parentMetadata) {
+      Object.entries(report.parentMetadata).forEach(([key, parentIssue]) => {
+        if (!allIssuesMap.has(key)) {
+          allIssuesMap.set(key, parentIssue);
+        }
+      });
+      console.log('Merged parent metadata:', Object.keys(report.parentMetadata));
+    }
+
+    // Group by immediate parent
+    issues.forEach(issue => {
+      if (issue.parent) {
+        const parentKey = issue.parent.key;
+        if (!parentMap.has(parentKey)) {
+          parentMap.set(parentKey, []);
+        }
+        parentMap.get(parentKey)!.push(issue);
+      } else {
+        noParentIssues.push(issue);
+      }
+    });
+
+    // Build grouped result
+    const grouped: ReportIssue[] = [];
+
+    // Add parent groups
+    parentMap.forEach((children, parentKey) => {
+      // Get parent from allIssuesMap (includes both regular issues and fetched parent metadata)
+      const parentIssue = allIssuesMap.get(parentKey);
+      
+      if (parentIssue) {
+        // Parent exists - use it with children
+        grouped.push({
+          ...parentIssue,
+          children: children,
+          totalHours: (parentIssue.totalHours || 0) + children.reduce((sum, c) => sum + c.totalHours, 0)
+        });
+      } else {
+        // Create placeholder parent - try to infer type from key or use first child's parent info
+        const parentInfo = children[0]?.parent;
+        if (parentInfo) {
+          // Try to infer issue type from the parent key or context
+          let inferredType = 'Story'; // Default assumption
+          
+          // Check if any child is a Story, then parent is likely Epic
+          const hasStoryChild = children.some(c => c.issueType === 'Story');
+          if (hasStoryChild) {
+            inferredType = 'Epic';
+          } else if (children.some(c => c.issueType === 'Sub-task' || c.issueType === 'Subtask')) {
+            // If children are subtasks, parent is likely Story
+            inferredType = 'Story';
+          }
+          
+          grouped.push({
+            key: parentKey,
+            summary: parentInfo.summary || 'Unknown Parent',
+            issueType: inferredType,
+            status: 'Unknown',
+            totalHours: children.reduce((sum, c) => sum + c.totalHours, 0),
+            assignees: [],
+            statusCategory: 'new',
+            children: children
+          });
+        }
+      }
+    });
+
+    // Add issues without parent
+    noParentIssues.forEach(issue => grouped.push(issue));
+
+    // Recursively group the next level
+    if (level > 1) {
+      return groupIssuesByParentLevel(grouped, level - 1);
+    }
+
+    return grouped;
+  }
 
   function exportCSV() {
     if (!report) return;
@@ -255,36 +393,233 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
                 </div>
               )}
 
-              {/* Export Button */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+              {/* Tab Navigation */}
+              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #dfe1e6' }}>
                 <button
-                  onClick={exportCSV}
+                  onClick={() => setActiveTab('overview')}
                   style={{
-                    padding: '8px 16px',
-                    background: '#f4f5f7',
-                    border: '1px solid #dfe1e6',
-                    borderRadius: 4,
+                    padding: '10px 20px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: activeTab === 'overview' ? '3px solid #0052cc' : '3px solid transparent',
+                    color: activeTab === 'overview' ? '#0052cc' : '#5e6c84',
                     cursor: 'pointer',
                     fontWeight: 600,
                     fontSize: '0.9rem',
-                    color: '#172b4d'
+                    marginBottom: '-2px'
                   }}
                 >
-                  📥 Export CSV
+                  📊 Overview
+                </button>
+                <button
+                  onClick={() => setActiveTab('charts')}
+                  style={{
+                    padding: '10px 20px',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: activeTab === 'charts' ? '3px solid #0052cc' : '3px solid transparent',
+                    color: activeTab === 'charts' ? '#0052cc' : '#5e6c84',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    fontSize: '0.9rem',
+                    marginBottom: '-2px'
+                  }}
+                >
+                  📈 Charts
                 </button>
               </div>
 
-              {/* Issues Tree */}
-              <div>
-                <h4 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d' }}>
-                  Work Breakdown ({report.issues.length} top-level items)
-                </h4>
-                <div style={{ border: '1px solid #dfe1e6', borderRadius: 8, overflow: 'hidden' }}>
-                  {report.issues.map(issue => (
-                    <IssueTreeNode key={issue.key} issue={issue} baseUrl={baseUrl} level={0} />
-                  ))}
+              {/* Overview Tab */}
+              {activeTab === 'overview' && (
+                <>
+                  {/* Filter Section */}
+                  <div style={{ marginBottom: '20px', background: '#f4f5f7', padding: '15px', borderRadius: 8 }}>
+                    <h5 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#172b4d' }}>🔍 Filter Issues</h5>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.85rem', color: '#5e6c84', marginBottom: '6px' }}>Team Member</label>
+                        <select
+                          value={filterMember || ''}
+                          onChange={(e) => setFilterMember(e.target.value || null)}
+                          style={{ width: '100%', padding: '8px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: '0.9rem', background: 'white' }}
+                        >
+                          <option value="">All Members</option>
+                          {(() => {
+                            const members = new Set<string>();
+                            function collectMembers(issue: ReportIssue) {
+                              issue.assignees.forEach(a => members.add(a.name));
+                              issue.children?.forEach(child => collectMembers(child));
+                            }
+                            report.issues.forEach(issue => collectMembers(issue));
+                            return Array.from(members).sort().map(name => (
+                              <option key={name} value={name}>{name}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.85rem', color: '#5e6c84', marginBottom: '6px' }}>Issue Type</label>
+                        <select
+                          value={filterType || ''}
+                          onChange={(e) => setFilterType(e.target.value || null)}
+                          style={{ width: '100%', padding: '8px', border: '1px solid #dfe1e6', borderRadius: 4, fontSize: '0.9rem', background: 'white' }}
+                        >
+                          <option value="">All Types</option>
+                          {(() => {
+                            const types = new Set<string>();
+                            function collectTypes(issue: ReportIssue) {
+                              types.add(issue.issueType);
+                              issue.children?.forEach(child => collectTypes(child));
+                            }
+                            report.issues.forEach(issue => collectTypes(issue));
+                            return Array.from(types).sort().map(type => (
+                              <option key={type} value={type}>{type}</option>
+                            ));
+                          })()}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Export Button */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
+                    <button
+                      onClick={exportCSV}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#f4f5f7',
+                        border: '1px solid #dfe1e6',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontWeight: 600,
+                        fontSize: '0.9rem',
+                        color: '#172b4d'
+                      }}
+                    >
+                      📥 Export CSV
+                    </button>
+                  </div>
+
+                  {/* Filter badges */}
+                  {(filterMember || filterType) && (
+                    <div style={{ marginBottom: '15px', display: 'flex', gap: '10px', alignItems: 'center', background: '#deebff', padding: '10px', borderRadius: 6 }}>
+                      <span style={{ fontSize: '0.85rem', color: '#0052cc', fontWeight: 600 }}>Active Filters:</span>
+                      {filterMember && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '4px 10px', borderRadius: 16, fontSize: '0.85rem', border: '1px solid #0052cc' }}>
+                          <span>👤 {filterMember}</span>
+                        </div>
+                      )}
+                      {filterType && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'white', padding: '4px 10px', borderRadius: 16, fontSize: '0.85rem', border: '1px solid #0052cc' }}>
+                          <span>📋 {filterType}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Issues Tree */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                      <h4 style={{ margin: 0, fontSize: '1rem', color: '#172b4d' }}>
+                        Work Breakdown ({getFilteredIssues(report.issues, filterMember, filterType).length} items)
+                        {groupingLevel > 0 && (
+                          <span style={{ fontSize: '0.85rem', color: '#5e6c84', fontWeight: 400, marginLeft: '10px' }}>
+                            (Grouped {groupingLevel} level{groupingLevel > 1 ? 's' : ''} up)
+                          </span>
+                        )}
+                      </h4>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        {groupingLevel > 0 && (
+                          <button
+                            onClick={() => setGroupingLevel(0)}
+                            style={{
+                              padding: '6px 12px',
+                              background: '#f4f5f7',
+                              color: '#172b4d',
+                              border: '1px solid #dfe1e6',
+                              borderRadius: 4,
+                              cursor: 'pointer',
+                              fontSize: '0.85rem',
+                              fontWeight: 600
+                            }}
+                          >
+                            Reset
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setGroupingLevel(groupingLevel + 1)}
+                          style={{
+                            padding: '6px 12px',
+                            background: groupingLevel > 0 ? '#0052cc' : '#f4f5f7',
+                            color: groupingLevel > 0 ? 'white' : '#172b4d',
+                            border: '1px solid #dfe1e6',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: '0.85rem',
+                            fontWeight: 600,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          {groupingLevel > 0 ? '↑' : ''} Group by Parent
+                        </button>
+                      </div>
+                    </div>
+                    <div style={{ border: '1px solid #dfe1e6', borderRadius: 8, overflow: 'hidden' }}>
+                      {/* Header Row */}
+                      <div style={{ 
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '12px 16px',
+                        background: '#f4f5f7',
+                        borderBottom: '2px solid #dfe1e6',
+                        fontWeight: 600,
+                        fontSize: '0.85rem',
+                        color: '#5e6c84',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        <div style={{ width: '20px' }} /> {/* Expand/collapse space */}
+                        <div style={{ minWidth: '60px', textAlign: 'center' }}>Type</div>
+                        <div style={{ minWidth: '100px' }}>Key</div>
+                        <div style={{ flex: 1 }}>Summary</div>
+                        <div style={{ minWidth: '100px' }}>Assignees</div>
+                        <div style={{ minWidth: '80px' }}>Status</div>
+                        <div style={{ minWidth: '60px', textAlign: 'right' }}>Hours</div>
+                      </div>
+                      {/* Issues */}
+                      {groupIssuesByParentLevel(getFilteredIssues(report.issues, filterMember, filterType), groupingLevel).map(issue => (
+                        <IssueTreeNode key={issue.key} issue={issue} baseUrl={baseUrl} level={0} />
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Charts Tab */}
+              {activeTab === 'charts' && (
+                <div style={{ display: 'grid', gap: '20px' }}>
+                  <TimeDistributionChart dailyHours={report.trends.dailyHours} />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <TeamContributionChart 
+                      issues={report.issues} 
+                      onMemberClick={(accountId, name) => {
+                        setFilterMember(name);
+                        setActiveTab('overview');
+                      }}
+                    />
+                    <IssueTypeBreakdown 
+                      issues={report.issues}
+                      onTypeClick={(type) => {
+                        setFilterType(type);
+                        setActiveTab('overview');
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
 
@@ -315,6 +650,26 @@ function IssueTreeNode({ issue, baseUrl, level }: { issue: ReportIssue; baseUrl:
   const statusColor = issue.statusCategory === 'done' ? '#36b37e' : issue.statusCategory === 'indeterminate' ? '#0052cc' : '#6b778c';
   const indent = level * 24;
 
+  // Calculate Epic progress if this is an Epic with children
+  const isEpic = issue.issueType === 'Epic';
+  let epicProgress = 0;
+  if (isEpic && hasChildren) {
+    const totalChildren = issue.children!.length;
+    const doneChildren = issue.children!.filter(child => child.statusCategory === 'done').length;
+    epicProgress = totalChildren > 0 ? (doneChildren / totalChildren) * 100 : 0;
+  }
+
+  // Get type color
+  const typeColors: Record<string, string> = {
+    'Epic': '#6554c0',
+    'Story': '#0052cc',
+    'Task': '#00875a',
+    'Bug': '#ff5630',
+    'Subtask': '#00b8d9',
+    'Sub-task': '#00b8d9'
+  };
+  const typeColor = typeColors[issue.issueType] || '#8993a4';
+
   return (
     <div>
       <div 
@@ -338,6 +693,20 @@ function IssueTreeNode({ issue, baseUrl, level }: { issue: ReportIssue; baseUrl:
         )}
         {!hasChildren && <span style={{ width: '20px' }} />}
         
+        {/* Issue Type Badge */}
+        <div style={{ 
+          padding: '2px 6px', 
+          borderRadius: 3, 
+          fontSize: '0.7rem', 
+          background: typeColor + '20',
+          color: typeColor,
+          fontWeight: 600,
+          minWidth: '60px',
+          textAlign: 'center'
+        }}>
+          {issue.issueType}
+        </div>
+
         <a
           href={baseUrl ? `${baseUrl}/browse/${issue.key}` : '#'}
           target="_blank"
@@ -347,7 +716,62 @@ function IssueTreeNode({ issue, baseUrl, level }: { issue: ReportIssue; baseUrl:
           {issue.key}
         </a>
 
-        <div style={{ flex: 1, fontSize: '0.9rem', color: '#172b4d' }}>{issue.summary}</div>
+        <div style={{ flex: 1, fontSize: '0.9rem', color: '#172b4d' }}>
+          {issue.summary}
+          {/* Show parent ticket if exists */}
+          <div style={{ fontSize: '0.75rem', color: '#5e6c84', marginTop: '2px' }}>
+            {issue.parent ? (
+              <>
+                <span style={{ fontWeight: 600 }}>Parent ticket:</span> {issue.parent.key} - {issue.parent.summary}
+              </>
+            ) : (
+              <span style={{ color: '#97a0af' }}>No parent ticket</span>
+            )}
+          </div>
+        </div>
+
+        {/* Assignees */}
+        {issue.assignees.length > 0 ? (
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center', minWidth: '100px' }}>
+            {issue.assignees.slice(0, 3).map((assignee, idx) => {
+              // Generate a color based on the name
+              const getColorFromName = (name: string) => {
+                const colors = ['#0052cc', '#00875a', '#6554c0', '#ff5630', '#ff8b00', '#36b37e'];
+                const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+                return colors[hash % colors.length];
+              };
+              
+              return (
+                <div 
+                  key={idx}
+                  title={`${assignee.name}: ${assignee.hours}h`}
+                  style={{ 
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: getColorFromName(assignee.name),
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    cursor: 'default'
+                  }}
+                >
+                  {assignee.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                </div>
+              );
+            })}
+            {issue.assignees.length > 3 && (
+              <div style={{ fontSize: '0.75rem', color: '#5e6c84', fontWeight: 600 }}>
+                +{issue.assignees.length - 3}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ minWidth: '100px', fontSize: '0.75rem', color: '#97a0af' }}>-</div>
+        )}
 
         <div style={{ 
           padding: '2px 8px', 
@@ -364,6 +788,35 @@ function IssueTreeNode({ issue, baseUrl, level }: { issue: ReportIssue; baseUrl:
           {issue.totalHours}h
         </div>
       </div>
+
+      {/* Epic Progress Bar */}
+      {isEpic && hasChildren && (
+        <div style={{ 
+          paddingLeft: `${32 + indent}px`,
+          paddingRight: '16px',
+          paddingTop: '8px',
+          paddingBottom: '8px',
+          background: level % 2 === 0 ? 'white' : '#fafbfc',
+          borderBottom: '1px solid #f4f5f7'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ fontSize: '0.75rem', color: '#5e6c84', minWidth: '80px' }}>
+              Progress: {Math.round(epicProgress)}%
+            </div>
+            <div style={{ flex: 1, height: '8px', background: '#f4f5f7', borderRadius: 4, overflow: 'hidden' }}>
+              <div style={{ 
+                width: `${epicProgress}%`, 
+                height: '100%', 
+                background: epicProgress === 100 ? '#36b37e' : '#0052cc',
+                transition: 'width 0.3s'
+              }} />
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#5e6c84' }}>
+              {issue.children!.filter(c => c.statusCategory === 'done').length}/{issue.children!.length} done
+            </div>
+          </div>
+        </div>
+      )}
 
       {hasChildren && isExpanded && issue.children!.map(child => (
         <IssueTreeNode key={child.key} issue={child} baseUrl={baseUrl} level={level + 1} />
