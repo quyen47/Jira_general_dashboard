@@ -12,12 +12,12 @@ export function calculateWorkDays(startDate: string, endDate: string): number {
 
   const current = new Date(start);
   while (current <= end) {
-    const dayOfWeek = current.getDay();
+    const dayOfWeek = current.getUTCDay();
     // 0 = Sunday, 6 = Saturday
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
       workDays++;
     }
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
 
   return workDays;
