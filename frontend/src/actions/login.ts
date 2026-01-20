@@ -3,6 +3,7 @@
 import { setJiraCredentials, clearJiraCredentials, JiraCredentials } from '@/lib/auth';
 import { Version3Client } from 'jira.js';
 import { redirect } from 'next/navigation';
+import { updateDomainTimezone } from './timezone';
 
 export async function login(formData: FormData) {
   const domain = formData.get('domain') as string;
@@ -35,6 +36,15 @@ export async function login(formData: FormData) {
 
     // internal implementation details
     await setJiraCredentials({ domain, email, apiToken });
+    
+    // Create domain config for settings page
+    try {
+      const hostname = new URL(host).hostname;
+      await updateDomainTimezone(hostname, 'Asia/Bangkok'); // Creates if doesn't exist
+    } catch (error) {
+      console.error('Error creating domain config:', error);
+      // Don't fail login if domain config creation fails
+    }
   } catch (e: any) {
     console.error('Login failed:', e);
     return { error: 'Invalid credentials or cannot connect to Jira' };

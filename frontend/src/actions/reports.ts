@@ -1,6 +1,7 @@
 'use server';
 
 import { getJiraClient } from '@/lib/jira';
+import { getDomainTimezone } from './timezone';
 
 export interface ReportIssue {
   key: string;
@@ -57,6 +58,34 @@ export async function generateWorklogReport(
   endDate: string
 ): Promise<WorklogReport> {
   const jira = await getJiraClient();
+
+  // Get project to extract domain for timezone
+  const project = await jira.projects.getProject(projectKey);
+  const domain = project.self ? new URL(project.self.split('/rest/')[0]).hostname : '';
+  const timezone = domain ? await getDomainTimezone(domain) : 'Asia/Bangkok';
+  
+  console.log(`[Report] Using timezone ${timezone} for domain ${domain}`);
+
+  /**
+   * Convert UTC timestamp to date string in the configured timezone
+   */
+  const convertToTimezoneDate = (utcTimestamp: string): string => {
+    try {
+      const date = new Date(utcTimestamp);
+      // Format date in the target timezone
+      const options: Intl.DateTimeFormatOptions = {
+        timeZone: timezone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      };
+      const parts = new Intl.DateTimeFormat('en-CA', options).format(date);
+      return parts; // Returns YYYY-MM-DD
+    } catch (error) {
+      console.error('Error converting date to timezone:', error);
+      return utcTimestamp.split('T')[0]; // Fallback to UTC date
+    }
+  };
 
   // Fetch all issues with worklogs in the date range
   const jql = `project = "${projectKey}" AND worklogDate >= "${startDate}" AND worklogDate <= "${endDate}" ORDER BY created DESC`;
@@ -179,7 +208,8 @@ export async function generateWorklogReport(
     const worklogs = issue.fields.worklog?.worklogs || [];
     
     for (const worklog of worklogs) {
-      const worklogDate = worklog.started?.split('T')[0];
+      // Convert UTC timestamp to local timezone date
+      const worklogDate = worklog.started ? convertToTimezoneDate(worklog.started) : null;
       
       // Only include worklogs within our date range
       if (worklogDate && worklogDate >= startDate && worklogDate <= endDate) {

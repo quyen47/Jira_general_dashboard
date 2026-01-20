@@ -10,6 +10,7 @@ import Timesheet from '@/components/Timesheet';
 import { getProjectTotalHours } from '@/actions/timesheet';
 import RecentActivity from '@/components/RecentActivity';
 import ReportGenerator from '@/components/ReportGenerator';
+import { updateDomainTimezone } from '@/actions/timezone';
 
 export default async function ProjectPage({
     params,
@@ -66,6 +67,14 @@ export default async function ProjectPage({
 
     if (project && project.self) {
         baseUrl = project.self.split('/rest/')[0];
+        
+        // Ensure domain config exists for settings page
+        try {
+          const domain = new URL(baseUrl).hostname;
+          await updateDomainTimezone(domain, 'Asia/Bangkok'); // Creates if doesn't exist
+        } catch (error) {
+          console.error('Error ensuring domain config:', error);
+        }
     }
 
     issues = search.issues || [];

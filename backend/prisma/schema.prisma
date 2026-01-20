@@ -114,3 +114,26 @@ model CapacitySnapshot {
 
   @@index([projectKey, weekStart])
 }
+
+// User login tracking grouped by Jira domain
+model UserLogin {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  domain      String   // Jira domain (e.g., "company.atlassian.net")
+  userId      String   // User identifier
+  email       String?
+  loginAt     DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+  
+  @@index([domain, loginAt])
+  @@index([userId])
+}
+
+// Domain-specific configuration including timezone
+model DomainConfig {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  domain      String   @unique
+  timezone    String   @default("Asia/Bangkok") // UTC+7 default
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

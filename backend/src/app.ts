@@ -12,6 +12,7 @@ import { AllocationController } from './controllers/AllocationController.js';
 import { createAllocationRoutes } from './routes/allocationRoutes.js';
 import { swaggerSpec } from './swagger.js';
 import { logger } from './utils/logger.js';
+import userTrackingRoutes from './routes/userTrackingRoutes.js';
 
 /**
  * Create and configure Express application
@@ -72,6 +73,9 @@ export function createApp(): Application {
 
   const allocationRoutes = createAllocationRoutes(allocationController);
   app.use('/api/projects/:key/allocations', allocationRoutes);
+
+  // User tracking routes
+  app.use('/api/user-tracking', userTrackingRoutes);
 
   // Global error handler
   app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
