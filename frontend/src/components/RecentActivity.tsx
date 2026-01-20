@@ -348,9 +348,25 @@ function ActivityByTicketGroup({ activities, baseUrl }: { activities: ActivityIt
                 <div key={key} style={{ border: '1px solid #dfe1e6', borderRadius: 8, padding: 12 }}>
                     {/* Ticket Header */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, borderBottom: '1px solid #f4f5f7', paddingBottom: 8 }}>
-                         <div style={{ background: '#42526e', color: 'white', fontSize: '0.75rem', fontWeight: 700, padding: '2px 6px', borderRadius: 3 }}>
+                         <a
+                             href={baseUrl ? `${baseUrl}/browse/${key}` : '#'}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             style={{ 
+                                 background: '#42526e', 
+                                 color: 'white', 
+                                 fontSize: '0.75rem', 
+                                 fontWeight: 700, 
+                                 padding: '2px 6px', 
+                                 borderRadius: 3,
+                                 textDecoration: 'none',
+                                 cursor: 'pointer'
+                             }}
+                             onMouseOver={(e) => e.currentTarget.style.background = '#0052cc'}
+                             onMouseOut={(e) => e.currentTarget.style.background = '#42526e'}
+                         >
                              {key}
-                         </div>
+                         </a>
                          <a 
                              href={baseUrl ? `${baseUrl}/browse/${key}` : '#'}
                              target="_blank"

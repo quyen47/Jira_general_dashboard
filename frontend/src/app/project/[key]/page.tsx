@@ -166,7 +166,7 @@ export default async function ProjectPage({
 
       <Timesheet projectKey={key} initialOpen={true} />
 
-      <FilterManager projectKey={key} />
+      <FilterManager projectKey={key} baseUrl={baseUrl} />
 
       <RecentActivity projectKey={key} baseUrl={baseUrl} />
 

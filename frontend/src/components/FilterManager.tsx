@@ -31,7 +31,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   'default': '#8993a4'
 };
 
-export default function FilterManager({ projectKey }: { projectKey: string }) {
+export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey: string; baseUrl?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentFilterJql = searchParams.get('filterJql') || '';
@@ -430,7 +430,16 @@ export default function FilterManager({ projectKey }: { projectKey: string }) {
                         .map((issue) => (
                         <tr key={issue.key} style={{ borderBottom: '1px solid #eee' }}>
                           <td style={{ padding: '10px' }}>
-                            <span style={{ color: '#0052cc', fontWeight: 500 }}>{issue.key}</span>
+                            <a
+                              href={baseUrl ? `${baseUrl}/browse/${issue.key}` : '#'}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ color: '#0052cc', fontWeight: 500, textDecoration: 'none', cursor: 'pointer' }}
+                              onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
+                              onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
+                            >
+                              {issue.key}
+                            </a>
                           </td>
                           <td style={{ padding: '10px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
