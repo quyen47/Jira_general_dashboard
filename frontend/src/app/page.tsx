@@ -35,15 +35,6 @@ export default async function Home() {
 
   return (
     <div className="dashboard-container">
-      <header className="header" style={{ marginBottom: '20px' }}>
-        <h1>Projects Overview</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
-            <form action={logout}>
-            <button type="submit" className="logout-btn">Logout</button>
-            </form>
-        </div>
-      </header>
-
       <PortfolioSummary projects={projects} />
       <ProjectTable projects={projects} />
     </div>

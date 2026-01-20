@@ -1,5 +1,4 @@
 import { getJiraClient } from '@/lib/jira';
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 
 import FilterManager from '@/components/FilterManager';
@@ -14,7 +13,6 @@ import { updateDomainTimezone } from '@/actions/timezone';
 
 export default async function ProjectPage({
     params,
-    searchParams,
   }: {
     params: Promise<{ key: string }>;
     searchParams: Promise<{ filterJql?: string }>;
@@ -84,7 +82,7 @@ export default async function ProjectPage({
     // Fetch children for calculations (if any epics found) - unfiltered
     let epicStats: Record<string, { total: number, todo: number, inprogress: number, done: number }> = {};
     if (epics.length > 0) {
-        const epicKeys = epics.map(e => e.key);
+        const epicKeys = epics.map((e: any) => e.key);
         const childrenJql = `parent in (${epicKeys.join(',')})`;
 
         const childrenSearch = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
@@ -114,7 +112,7 @@ export default async function ProjectPage({
         });
     }
 
-    epicList = epics.map(epic => ({
+    epicList = epics.map((epic: any) => ({
         key: epic.key,
         summary: epic.fields.summary,
         startDate: epic.fields.created, 

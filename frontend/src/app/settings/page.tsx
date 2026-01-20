@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { getAllDomainConfigs, updateDomainTimezone, DomainConfig } from '@/actions/timezone';
+import { logout } from '@/actions/login';
 
 const COMMON_TIMEZONES = [
   { value: 'Asia/Bangkok', label: 'Bangkok (UTC+7)' },
@@ -63,13 +64,41 @@ export default function GlobalSettings() {
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: '#172b4d' }}>
-          ⚙️ Global Settings
-        </h1>
-        <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', color: '#5e6c84' }}>
-          Configure timezone settings for your Jira domains
-        </p>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <a href="/" style={{ 
+            color: '#0052cc', 
+            textDecoration: 'none', 
+            fontSize: '0.9rem',
+            marginBottom: '8px',
+            display: 'inline-block'
+          }}>
+            ← Back to Dashboard
+          </a>
+          <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600, color: '#172b4d' }}>
+            ⚙️ Global Settings
+          </h1>
+          <p style={{ margin: '8px 0 0 0', fontSize: '0.9rem', color: '#5e6c84' }}>
+            Configure timezone settings for your Jira domains
+          </p>
+        </div>
+        <form action={logout}>
+          <button 
+            type="submit" 
+            style={{
+              padding: '8px 16px',
+              background: '#de350b',
+              color: 'white',
+              border: 'none',
+              borderRadius: 4,
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              fontWeight: 500
+            }}
+          >
+            Logout
+          </button>
+        </form>
       </div>
 
       {message && (
