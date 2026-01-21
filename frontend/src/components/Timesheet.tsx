@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useTransition } from 'react';
 import { getProjectWorklogs, TimesheetData, WorklogEntry } from '@/actions/timesheet';
+import { getPTOData, PTOData } from '@/actions/pto';
 import RecentActivity from './RecentActivity';
 import { getAllocations, createAllocation, updateAllocation, ResourceAllocation } from '@/lib/allocation-api';
 import AllocationInput from './allocation/AllocationInput';
@@ -27,6 +28,10 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
   // Allocation state - supports multiple allocations per person
   const [allocations, setAllocations] = useState<Map<string, ResourceAllocation[]>>(new Map());
   const [isLoadingAllocations, setIsLoadingAllocations] = useState(false);
+  
+  // PTO state
+  const [ptoData, setPTOData] = useState<PTOData>({});
+  const [isLoadingPTO, setIsLoadingPTO] = useState(false);
 
   // Reset drill-down when modal closes or changes
   useEffect(() => {
@@ -130,6 +135,25 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
     }
   };
 
+  const loadPTOData = async (accountIds: string[]) => {
+    if (accountIds.length === 0) {
+      setPTOData({});
+      return;
+    }
+    
+    setIsLoadingPTO(true);
+    try {
+      const range = getDateRange();
+      const data = await getPTOData(accountIds, range.startDate, range.endDate);
+      setPTOData(data);
+    } catch (error) {
+      console.error('Failed to load PTO data:', error);
+      setPTOData({});
+    } finally {
+      setIsLoadingPTO(false);
+    }
+  };
+
   const loadData = () => {
     startTransition(async () => {
       const range = getDateRange();
@@ -137,8 +161,19 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
       setData(result.data);
       setBaseUrl(result.baseUrl);
       
-      // Load allocations
-      await loadAllocations();
+      // Extract unique account IDs from worklog data
+      const accountIds = new Set<string>();
+      Object.values(result.data).forEach(dayData => {
+        Object.keys(dayData).forEach(accountId => {
+          accountIds.add(accountId);
+        });
+      });
+      
+      // Load allocations and PTO data in parallel
+      await Promise.all([
+        loadAllocations(),
+        loadPTOData(Array.from(accountIds))
+      ]);
     });
   };
 
@@ -283,47 +318,72 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
       {isOpen && (
         <div style={{ padding: '20px' }}>
           {/* Controls */}
-          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-            {rangeType === 'custom' && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f4f5f7', padding: '4px 8px', borderRadius: 4, border: '1px solid #dfe1e6' }}>
-                    <input 
-                        type="date" 
-                        value={customStartDate} 
-                        onChange={(e) => setCustomStartDate(e.target.value)}
-                        style={{ border: 'none', background: 'transparent', fontSize: '0.9rem', color: '#172b4d' }}
-                    />
-                    <span style={{ color: '#6b778c' }}>to</span>
-                    <input 
-                        type="date" 
-                        value={customEndDate} 
-                        onChange={(e) => setCustomEndDate(e.target.value)}
-                        style={{ border: 'none', background: 'transparent', fontSize: '0.9rem', color: '#172b4d' }}
-                    />
-                </div>
-            )}
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* PTO Legend */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ 
+                  width: 20, 
+                  height: 20, 
+                  background: '#FFF4E6', 
+                  border: '1px solid #FFB020',
+                  borderRadius: 3
+                }} />
+                <span style={{ fontSize: '0.85rem', color: '#172b4d' }}>PTO Day</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div style={{ 
+                  width: 20, 
+                  height: 20, 
+                  background: 'linear-gradient(to right, #FFF4E6 50%, white 50%)', 
+                  border: '1px solid #FFB020',
+                  borderRadius: 3
+                }} />
+                <span style={{ fontSize: '0.85rem', color: '#172b4d' }}>Half PTO</span>
+              </div>
+            </div>
             
-            <select 
-              value={rangeType} 
-              onChange={(e) => {
-                setRangeType(e.target.value);
-                // Trigger refresh cleanly
-                setTimeout(() => document.getElementById('refresh-timesheet')?.click(), 100);
-              }}
-              style={{
-                padding: '6px 12px',
-                borderRadius: 4,
-                border: '1px solid #dfe1e6',
-                background: '#f4f5f7',
-                fontSize: '0.9rem'
-              }}
-            >
-              <option value="7">Last 7 Days</option>
-              <option value="14">Last 14 Days</option>
-              <option value="30">Last 30 Days</option>
-              <option value="current_month">Current Month</option>
-              <option value="prev_month">Previous Month</option>
-              <option value="custom">Custom Range</option>
-            </select>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              {rangeType === 'custom' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#f4f5f7', padding: '4px 8px', borderRadius: 4, border: '1px solid #dfe1e6' }}>
+                      <input 
+                          type="date" 
+                          value={customStartDate} 
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                          style={{ border: 'none', background: 'transparent', fontSize: '0.9rem', color: '#172b4d' }}
+                      />
+                      <span style={{ color: '#6b778c' }}>to</span>
+                      <input 
+                          type="date" 
+                          value={customEndDate} 
+                          onChange={(e) => setCustomEndDate(e.target.value)}
+                          style={{ border: 'none', background: 'transparent', fontSize: '0.9rem', color: '#172b4d' }}
+                      />
+                  </div>
+              )}
+              
+              <select 
+                value={rangeType} 
+                onChange={(e) => {
+                  setRangeType(e.target.value);
+                  // Trigger refresh cleanly
+                  setTimeout(() => document.getElementById('refresh-timesheet')?.click(), 100);
+                }}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: 4,
+                  border: '1px solid #dfe1e6',
+                  background: '#f4f5f7',
+                  fontSize: '0.9rem'
+                }}
+              >
+                <option value="7">Last 7 Days</option>
+                <option value="14">Last 14 Days</option>
+                <option value="30">Last 30 Days</option>
+                <option value="current_month">Current Month</option>
+                <option value="prev_month">Previous Month</option>
+                <option value="custom">Custom Range</option>
+              </select>
             
              <button 
               onClick={() => setShowExportModal(true)}
@@ -358,6 +418,7 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
             >
               {isPending ? 'Loading...' : 'Refresh'}
             </button>
+            </div>
           </div>
 
           {/* Grid */}
@@ -631,6 +692,33 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                           const dateObj = new Date(date);
                           const isWeekend = dateObj.getUTCDay() === 0 || dateObj.getUTCDay() === 6;
                           
+                          // Get PTO data for this user/date
+                          const ptoEntry = ptoData[user.accountId]?.[date];
+                          const hasPTO = !!ptoEntry;
+                          const ptoHalfDay = hasPTO && ptoEntry.duration === 0.5;
+                          const ptoFullDay = hasPTO && ptoEntry.duration === 1;
+                          
+                          // Determine background color with PTO consideration
+                          let cellBackground = 'transparent';
+                          
+                          if (ptoFullDay) {
+                            // Full day PTO - solid light orange background
+                            cellBackground = '#FFF4E6';
+                          } else if (ptoHalfDay) {
+                            // Half day PTO - gradient (left half orange, right half normal)
+                            const normalBg = isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'white');
+                            cellBackground = `linear-gradient(to right, #FFF4E6 50%, ${normalBg} 50%)`;
+                          } else {
+                            // No PTO - normal background logic
+                            if (seconds > 0) {
+                              cellBackground = selectedCell?.date === formatDate(date) && selectedCell?.authorName === user.displayName 
+                                ? '#deebff' 
+                                : isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'transparent');
+                            } else {
+                              cellBackground = isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'transparent');
+                            }
+                          }
+                          
                           return (
                             <td 
                               key={date} 
@@ -647,12 +735,31 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
                                 textAlign: 'center', 
                                 padding: '10px',
                                 cursor: seconds > 0 ? 'pointer' : 'default',
-                                background: seconds > 0 ? (selectedCell?.date === formatDate(date) && selectedCell?.authorName === user.displayName ? '#deebff' : isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'transparent')) : (isToday ? '#e3fcef' : (isWeekend ? '#f4f5f7' : 'transparent')),
+                                background: cellBackground,
                                 color: seconds > 0 ? '#0052cc' : '#ccc',
-                                borderBottom: '1px solid #eee'
+                                borderBottom: '1px solid #eee',
+                                position: 'relative'
                               }}
                             >
+                              {/* Worklog display */}
                               {seconds > 0 ? formatSeconds(seconds) : '-'}
+                              
+                              {/* PTO indicator */}
+                              {hasPTO && (
+                                <div 
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: '2px',
+                                    right: '2px',
+                                    fontSize: '0.7rem',
+                                    opacity: 0.7,
+                                    lineHeight: 1
+                                  }}
+                                  title={`PTO: ${ptoEntry.duration} day - ${ptoEntry.status}`}
+                                >
+                                  {ptoHalfDay ? '🏖️½' : '🏖️'}
+                                </div>
+                              )}
                             </td>
                           );
                         })}
