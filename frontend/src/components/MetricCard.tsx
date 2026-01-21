@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 interface MetricCardProps {
   title: string;
   status: 'success' | 'warning' | 'danger' | 'info';
@@ -8,6 +10,7 @@ interface MetricCardProps {
   icon?: string;
   trend?: 'up' | 'down' | 'stable';
   onClick?: () => void;
+  description?: string; // Tooltip description
 }
 
 const STATUS_COLORS = {
@@ -45,13 +48,17 @@ export default function MetricCard({
   icon,
   trend,
   onClick,
+  description,
 }: MetricCardProps) {
+  const [showTooltip, setShowTooltip] = useState(false);
   const colors = STATUS_COLORS[status];
   const displayIcon = icon || colors.icon;
 
   return (
     <div
       onClick={onClick}
+      onMouseEnter={() => setShowTooltip(true)}
+      onMouseLeave={() => setShowTooltip(false)}
       style={{
         background: colors.bg,
         border: `2px solid ${colors.border}`,
@@ -59,6 +66,7 @@ export default function MetricCard({
         padding: '16px',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'transform 0.2s, box-shadow 0.2s',
+        position: 'relative',
         ...(onClick && {
           ':hover': {
             transform: 'translateY(-2px)',
@@ -67,10 +75,56 @@ export default function MetricCard({
         }),
       }}
     >
+      {/* Tooltip */}
+      {description && showTooltip && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '-10px',
+            left: '50%',
+            transform: 'translateX(-50%) translateY(-100%)',
+            background: '#172b4d',
+            color: 'white',
+            padding: '12px 16px',
+            borderRadius: 6,
+            fontSize: '0.8rem',
+            lineHeight: 1.5,
+            maxWidth: '320px',
+            minWidth: '250px',
+            zIndex: 1000,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            whiteSpace: 'normal',
+            wordWrap: 'break-word',
+            animation: 'fadeIn 0.2s ease-in',
+          }}
+        >
+          {description}
+          {/* Arrow */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '-6px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: 0,
+              height: 0,
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #172b4d',
+            }}
+          />
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#5e6c84', textTransform: 'uppercase' }}>
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#5e6c84', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
           {title}
+          {description && (
+            <span style={{ fontSize: '0.75rem', opacity: 0.6 }} title="Hover for details">
+              ℹ️
+            </span>
+          )}
         </div>
         <div style={{ fontSize: '1.5rem' }}>{displayIcon}</div>
       </div>
@@ -93,6 +147,19 @@ export default function MetricCard({
           {subValue}
         </div>
       )}
+
+      <style jsx>{`
+        @keyframes fadeIn {
+          from {
+            opacity: 0;
+            transform: translateX(-50%) translateY(-100%) scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(-50%) translateY(-100%) scale(1);
+          }
+        }
+      `}</style>
     </div>
   );
 }

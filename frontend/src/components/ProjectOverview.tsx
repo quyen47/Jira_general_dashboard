@@ -458,40 +458,53 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                       {/* Metric Cards */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
                         <MetricCard
-                          title="Schedule"
+                          title="Work Progress"
                           status={scheduleStatus}
                           mainValue={`${scheduleInsights.percentComplete.toFixed(0)}%`}
-                          subValue={`${scheduleInsights.percentTimeElapsed.toFixed(0)}% time elapsed`}
+                          subValue={scheduleInsights.status === 'ahead' ? 'Ahead of schedule ✓' : 
+                                    scheduleInsights.status === 'behind' ? `Behind by ${Math.abs(scheduleInsights.daysAheadBehind)}d` :
+                                    scheduleInsights.status === 'overtime' ? 'Project overdue!' :
+                                    'On track'}
                           icon={scheduleInsights.status === 'ahead' ? '🟢' : 
                                 scheduleInsights.status === 'overtime' ? '🚨' : 
                                 scheduleInsights.status === 'behind' ? '🔴' : '🟡'}
+                          description="Work completed vs. time elapsed"
                         />
                         <MetricCard
-                          title="Budget"
+                          title="Budget Spent"
                           status={budgetStatus}
                           mainValue={`${budgetInsights.percentSpent.toFixed(0)}%`}
-                          subValue={`${budgetInsights.remainingBudget.toFixed(0)}h remaining`}
+                          subValue={budgetInsights.status === 'healthy' ? 'Spending on track ✓' :
+                                    budgetInsights.status === 'over-budget' ? 'Over budget!' :
+                                    `${budgetInsights.remainingBudget.toFixed(0)}h left`}
                           icon={budgetInsights.status === 'healthy' ? '🟢' : 
                                 budgetInsights.status === 'over-budget' ? '🚨' : '🟡'}
+                          description="Hours consumed from total budget"
                         />
                         <MetricCard
-                          title="Runway"
+                          title="Budget Runway"
                           status={budgetInsights.weeksOfRunway < 4 ? 'danger' : 
                                   budgetInsights.weeksOfRunway < 8 ? 'warning' : 'success'}
                           mainValue={budgetInsights.weeksOfRunway < 999 ? `${budgetInsights.weeksOfRunway.toFixed(1)}w` : '∞'}
-                          subValue={`${budgetInsights.weeklyBurnRate.toFixed(0)}h/week burn`}
+                          subValue={budgetInsights.weeksOfRunway < 4 ? 'Budget running out!' :
+                                    budgetInsights.weeksOfRunway < 8 ? 'Low runway warning' :
+                                    `${budgetInsights.weeklyBurnRate.toFixed(0)}h/week burn`}
                           icon="⏱️"
+                          description="Weeks until budget depleted"
                         />
                         <MetricCard
-                          title="Completion"
+                          title="Est. Completion"
                           status={scheduleInsights.status === 'ahead' ? 'success' : 'info'}
                           mainValue={scheduleInsights.projectedEndDate ? 
                                     new Date(scheduleInsights.projectedEndDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 
                                     '-'}
-                          subValue={scheduleInsights.daysAheadBehind !== 0 ? 
-                                   `${Math.abs(scheduleInsights.daysAheadBehind)}d ${scheduleInsights.daysAheadBehind > 0 ? 'ahead' : 'behind'}` : 
-                                   'On track'}
+                          subValue={scheduleInsights.daysAheadBehind > 0 ? 
+                                   `${scheduleInsights.daysAheadBehind}d early ✓` : 
+                                   scheduleInsights.daysAheadBehind < 0 ?
+                                   `${Math.abs(scheduleInsights.daysAheadBehind)}d late` :
+                                   'On target date'}
                           icon="🎯"
+                          description="Projected finish date"
                         />
                       </div>
 
