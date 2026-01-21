@@ -55,6 +55,13 @@ export interface Alert {
   priority: number;
 }
 
+export interface Recommendation {
+  type: 'action' | 'opportunity' | 'optimization';
+  message: string;
+  priority: number;
+  action: string;
+}
+
 /**
  * Calculate schedule health and insights
  */
@@ -307,4 +314,166 @@ export function generateAlerts(
 
   // Sort by priority (highest first)
   return alerts.sort((a, b) => b.priority - a.priority);
+}
+
+/**
+ * Generate actionable recommendations based on project insights
+ * These should be unique solutions, not duplicating alert messages
+ */
+export function generateRecommendations(
+  schedule: ScheduleInsight,
+  budget: BudgetInsight,
+  epics: any[]
+): Recommendation[] {
+  const recommendations: Recommendation[] = [];
+
+  // Only provide recommendations for situations that need specific actions
+  // Avoid duplicating what's already in alerts
+  
+  // Action: Over budget - provide specific recovery options
+  if (budget.status === 'over-budget') {
+    recommendations.push({
+      type: 'action',
+      message: 'Budget Recovery Options',
+      action: 'Request additional budget, reduce scope, or optimize resource allocation to bring costs under control',
+      priority: 100,
+    });
+  }
+
+  // Action: Overtime - provide escalation path
+  if (schedule.status === 'overtime') {
+    recommendations.push({
+      type: 'action',
+      message: 'Immediate Actions Required',
+      action: 'Add resources, work overtime, or negotiate timeline extension with stakeholders',
+      priority: 95,
+    });
+  }
+
+  // Action: Low runway - provide funding options
+  if (budget.weeksOfRunway < 4 && budget.weeksOfRunway > 0) {
+    recommendations.push({
+      type: 'action',
+      message: 'Extend Budget Runway',
+      action: 'Secure additional funding immediately or reduce team size to extend runway',
+      priority: 90,
+    });
+  }
+
+  // Action: Behind schedule + burning budget fast - provide combined solution
+  if (schedule.status === 'behind' && budget.variance > 10) {
+    const workRemaining = 100 - schedule.percentComplete;
+    const scopeReduction = Math.round(workRemaining * 0.3);
+    const daysDelay = Math.abs(schedule.daysAheadBehind);
+    const manMonthsNeeded = (daysDelay / 30) * 2;
+    
+    recommendations.push({
+      type: 'action',
+      message: 'Recovery Strategy',
+      action: `Option 1: Reduce scope by ${scopeReduction}% to align with budget | Option 2: Secure ${Math.round(budget.variance)}% additional budget and add ${manMonthsNeeded.toFixed(1)} man-months of senior resources | Option 3: Extend timeline by ${daysDelay} days`,
+      priority: 85,
+    });
+  }
+
+  // Action: Significantly behind schedule - provide resource calculation
+  if (schedule.status === 'behind' && Math.abs(schedule.daysAheadBehind) > 14) {
+    const daysDelay = Math.abs(schedule.daysAheadBehind);
+    const workRemaining = 100 - schedule.percentComplete;
+    const catchUpWorkDays = (workRemaining / 100) * daysDelay;
+    const manMonthsNeeded = (catchUpWorkDays / 30) * 1.5;
+    const scopeReduction = Math.round(workRemaining * 0.2);
+    
+    recommendations.push({
+      type: 'action',
+      message: 'Catch-Up Plan',
+      action: `Add ${manMonthsNeeded.toFixed(1)} man-months to critical path (${Math.ceil(manMonthsNeeded)} person for 1 month or ${Math.ceil(manMonthsNeeded * 2)} people for 0.5 months), OR reduce non-essential features by ${scopeReduction}%, OR extend deadline by ${daysDelay} days`,
+      priority: 80,
+    });
+  }
+
+  // Action: Moderately behind schedule - provide acceleration options
+  if (schedule.status === 'behind' && Math.abs(schedule.daysAheadBehind) <= 14 && Math.abs(schedule.daysAheadBehind) > 0) {
+    const daysDelay = Math.abs(schedule.daysAheadBehind);
+    const workRemaining = 100 - schedule.percentComplete;
+    const catchUpWorkDays = (workRemaining / 100) * daysDelay;
+    const manMonthsNeeded = (catchUpWorkDays / 30) * 1.2;
+    const scopeReduction = Math.round(workRemaining * 0.1);
+    
+    recommendations.push({
+      type: 'action',
+      message: 'Acceleration Options',
+      action: `Add ${manMonthsNeeded.toFixed(1)} man-months (e.g., ${Math.ceil(manMonthsNeeded)} person for 1 month) to accelerate delivery, OR identify and remove blockers, OR reduce scope by ${scopeReduction}%`,
+      priority: 70,
+    });
+  }
+
+  // Optimization: Burning budget too fast
+  if (budget.status === 'at-risk' && budget.variance > 15) {
+    recommendations.push({
+      type: 'optimization',
+      message: 'Optimize Resource Allocation',
+      action: 'Review resource allocation, reduce non-essential work, or optimize team composition to slow burn rate',
+      priority: 65,
+    });
+  }
+
+  // Action: Stale epics - provide specific actions
+  if (epics && epics.length > 0) {
+    const staleEpics = epics.filter(e => {
+      const pct = e.totalIssues > 0 ? (e.done / e.totalIssues) * 100 : 0;
+      return pct === 0 && e.totalIssues > 0;
+    });
+
+    if (staleEpics.length > 0) {
+      recommendations.push({
+        type: 'action',
+        message: 'Address Stale Epics',
+        action: 'Review and prioritize stale epics, assign resources, or consider descoping',
+        priority: 60,
+      });
+    }
+  }
+
+  // Optimization: Moderate budget risk
+  if (budget.status === 'at-risk' && budget.variance > 5 && budget.variance <= 15) {
+    recommendations.push({
+      type: 'optimization',
+      message: 'Monitor Budget Closely',
+      action: 'Monitor burn rate closely and optimize resource utilization to prevent budget overrun',
+      priority: 50,
+    });
+  }
+
+  // Opportunity: Ahead of schedule
+  if (schedule.status === 'ahead' && schedule.daysAheadBehind > 7) {
+    recommendations.push({
+      type: 'opportunity',
+      message: 'Leverage Schedule Advantage',
+      action: 'Consider adding value-add features, improving quality, or delivering early to exceed expectations',
+      priority: 40,
+    });
+  }
+
+  // Opportunity: Under budget
+  if (budget.variance < -15 && budget.status === 'healthy') {
+    recommendations.push({
+      type: 'opportunity',
+      message: 'Invest Budget Surplus',
+      action: 'Consider investing in quality improvements, technical debt reduction, or additional features',
+      priority: 35,
+    });
+  }
+
+  // Opportunity: Good runway
+  if (budget.weeksOfRunway > 12 && budget.status === 'healthy') {
+    recommendations.push({
+      type: 'opportunity',
+      message: 'Maintain Quality Standards',
+      action: 'Project is well-funded - maintain current pace and quality standards',
+      priority: 30,
+    });
+  }
+
+  // Sort by priority (highest first)
+  return recommendations.sort((a, b) => b.priority - a.priority);
 }

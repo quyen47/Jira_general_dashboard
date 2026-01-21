@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { getOverview, saveOverview as apiSaveOverview } from '@/lib/api';
 import BurnDownChart from './BurnDownChart';
-import { calculateScheduleInsights, calculateBudgetInsights, generateAlerts } from '@/lib/insights';
+import { calculateScheduleInsights, calculateBudgetInsights, generateAlerts, generateRecommendations } from '@/lib/insights';
 import MetricCard from './MetricCard';
 import InsightsPanel from './InsightsPanel';
 
@@ -443,6 +443,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                   );
 
                   const alerts = generateAlerts(scheduleInsights, budgetInsights, epics);
+                  const recommendations = generateRecommendations(scheduleInsights, budgetInsights, epics);
 
                   // Determine metric card statuses
                   const scheduleStatus = scheduleInsights.status === 'ahead' ? 'success' :
@@ -496,7 +497,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
 
                       {/* Insights Panel */}
                       <div style={{ marginBottom: '30px' }}>
-                        <InsightsPanel alerts={alerts} />
+                        <InsightsPanel recommendations={recommendations} />
                       </div>
                     </>
                   );

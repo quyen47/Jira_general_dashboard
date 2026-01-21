@@ -1,13 +1,13 @@
 'use client';
 
-import { Alert } from '@/lib/insights';
+import { Recommendation } from '@/lib/insights';
 
 interface InsightsPanelProps {
-  alerts: Alert[];
+  recommendations?: Recommendation[];
 }
 
-export default function InsightsPanel({ alerts }: InsightsPanelProps) {
-  if (alerts.length === 0) {
+export default function InsightsPanel({ recommendations = [] }: InsightsPanelProps) {
+  if (recommendations.length === 0) {
     return (
       <div style={{
         background: '#E3FCEF',
@@ -17,14 +17,14 @@ export default function InsightsPanel({ alerts }: InsightsPanelProps) {
         textAlign: 'center',
         color: '#006644'
       }}>
-        ✅ No alerts - Everything looks good!
+        ✅ No recommendations - Everything looks good!
       </div>
     );
   }
 
-  const critical = alerts.filter(a => a.type === 'critical');
-  const warnings = alerts.filter(a => a.type === 'warning');
-  const positive = alerts.filter(a => a.type === 'positive');
+  const actionRecs = recommendations.filter(r => r.type === 'action');
+  const optimizationRecs = recommendations.filter(r => r.type === 'optimization');
+  const opportunityRecs = recommendations.filter(r => r.type === 'opportunity');
 
   return (
     <div style={{
@@ -42,103 +42,76 @@ export default function InsightsPanel({ alerts }: InsightsPanelProps) {
         fontSize: '0.9rem',
         color: '#172b4d'
       }}>
-        📊 Project Insights & Alerts
+        💡 Recommendations ({recommendations.length})
       </div>
 
-      {/* Alerts */}
+      {/* Recommendations */}
       <div style={{ padding: '16px' }}>
-        {/* Critical Alerts */}
-        {critical.length > 0 && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              color: '#BF2600',
+        {/* Action Recommendations */}
+        {actionRecs.map((rec, idx) => (
+          <div
+            key={`action-${idx}`}
+            style={{
+              background: '#FFF0F0',
+              border: '1px solid #FF5630',
+              borderLeft: '4px solid #FF5630',
+              borderRadius: 4,
+              padding: '10px 12px',
               marginBottom: '8px',
-              textTransform: 'uppercase'
-            }}>
-              🚨 Critical ({critical.length})
+            }}
+          >
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#BF2600', marginBottom: '4px' }}>
+              🎯 {rec.message}
             </div>
-            {critical.map((alert, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: '#FFEBE6',
-                  border: '1px solid #DE350B',
-                  borderRadius: 4,
-                  padding: '8px 12px',
-                  marginBottom: '6px',
-                  fontSize: '0.85rem',
-                  color: '#BF2600'
-                }}
-              >
-                {alert.message}
-              </div>
-            ))}
+            <div style={{ fontSize: '0.8rem', color: '#5e6c84', lineHeight: 1.4 }}>
+              {rec.action}
+            </div>
           </div>
-        )}
+        ))}
 
-        {/* Warning Alerts */}
-        {warnings.length > 0 && (
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              color: '#FF8B00',
+        {/* Optimization Recommendations */}
+        {optimizationRecs.map((rec, idx) => (
+          <div
+            key={`opt-${idx}`}
+            style={{
+              background: '#FFFBF0',
+              border: '1px solid #FFAB00',
+              borderLeft: '4px solid #FFAB00',
+              borderRadius: 4,
+              padding: '10px 12px',
               marginBottom: '8px',
-              textTransform: 'uppercase'
-            }}>
-              ⚠️ Warnings ({warnings.length})
+            }}
+          >
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#FF8B00', marginBottom: '4px' }}>
+              ⚙️ {rec.message}
             </div>
-            {warnings.map((alert, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: '#FFFAE6',
-                  border: '1px solid #FF991F',
-                  borderRadius: 4,
-                  padding: '8px 12px',
-                  marginBottom: '6px',
-                  fontSize: '0.85rem',
-                  color: '#FF8B00'
-                }}
-              >
-                {alert.message}
-              </div>
-            ))}
+            <div style={{ fontSize: '0.8rem', color: '#5e6c84', lineHeight: 1.4 }}>
+              {rec.action}
+            </div>
           </div>
-        )}
+        ))}
 
-        {/* Positive Alerts */}
-        {positive.length > 0 && (
-          <div>
-            <div style={{
-              fontSize: '0.8rem',
-              fontWeight: 600,
-              color: '#006644',
+        {/* Opportunity Recommendations */}
+        {opportunityRecs.map((rec, idx) => (
+          <div
+            key={`opp-${idx}`}
+            style={{
+              background: '#E6F2FF',
+              border: '1px solid #0052CC',
+              borderLeft: '4px solid #0052CC',
+              borderRadius: 4,
+              padding: '10px 12px',
               marginBottom: '8px',
-              textTransform: 'uppercase'
-            }}>
-              ✅ Positive ({positive.length})
+            }}
+          >
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#0052CC', marginBottom: '4px' }}>
+              🌟 {rec.message}
             </div>
-            {positive.map((alert, idx) => (
-              <div
-                key={idx}
-                style={{
-                  background: '#E3FCEF',
-                  border: '1px solid #00875A',
-                  borderRadius: 4,
-                  padding: '8px 12px',
-                  marginBottom: '6px',
-                  fontSize: '0.85rem',
-                  color: '#006644'
-                }}
-              >
-                {alert.message}
-              </div>
-            ))}
+            <div style={{ fontSize: '0.8rem', color: '#5e6c84', lineHeight: 1.4 }}>
+              {rec.action}
+            </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   );
