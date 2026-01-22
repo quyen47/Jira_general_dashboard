@@ -59,6 +59,30 @@ DATABASE_URL="mongodb+srv://<username>:<password>@cluster.mongodb.net/jira_dashb
 PORT=3001
 ```
 
+### 3. n8n Integration (AI Recommendations)
+
+To enable the "Get AI Recommendations" feature, you need to run [n8n](https://n8n.io/) locally (or in Docker).
+
+**3.1 Start n8n**
+```bash
+npx n8n start
+# Access at http://localhost:5678
+```
+
+**3.2 Import Workflow**
+1.  Open n8n UI.
+2.  Import the workflow file from: `backend/workflows/n8n_workflow_recommendations.json`.
+
+**3.3 Configure Credentials**
+1.  Open the **OpenAI Recommendations** node.
+2.  Select/Create an "OpenAI API" credential.
+3.  Enter your API Key.
+
+**3.4 Activate & Save**
+1.  **Toggle the "Active" switch** (top-right) to **ON (Green)**.
+2.  Save the workflow.
+*Crucial*: The Production URL is used by the app, so the workflow must be active.
+
 ## 🏃‍♂️ Running the Application
 
 ### Start Frontend (Development)

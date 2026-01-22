@@ -1,0 +1,176 @@
+{
+  "name": "AI Project Recommendations",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-project-recommendations",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.body.backendUrl || 'http://host.docker.internal:3001'}}/api/projects/{{$json.body.projectKey}}/overview",
+        "method": "GET",
+        "options": {}
+      },
+      "id": "get-overview",
+      "name": "Get Project Overview",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.body.backendUrl || 'http://host.docker.internal:3001'}}/api/projects/{{$json.body.projectKey}}/allocations",
+        "method": "GET",
+        "options": {
+            "splitIntoItems": false
+        }
+      },
+      "id": "get-allocations",
+      "name": "Get Project Allocations",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        680,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "mergeByPosition",
+        "options": {}
+      },
+      "id": "merge-data",
+      "name": "Merge Data",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [
+        900,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are an expert Project Manager. Analyze the provided project data (Overview and Allocations). \n\nProvide 3-5 specific, high-impact recommendations to improve project health. \nFocus strictly on:\n1. Risks (Timeline, Budget, Scope)\n2. Resource Bottlenecks (Over/Under-allocation)\n3. Budget Variances\n\nFormat your response as a Markdown list of bullet points. Do NOT generate a generic status report. Be concise and actionable."
+            },
+            {
+              "role": "user",
+              "content": "=Analyze Project: {{$('Webhook').first().json.body.projectKey}}\n\nOverview Data: {{$('Get Project Overview').first().json}}\n\nAllocations Data: {{$('Get Project Allocations').first().json}}"
+            }
+          ]
+        }
+      },
+      "id": "openai-analysis",
+      "name": "OpenAI Recommendations",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        300
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "webhook-response",
+      "name": "Respond to App",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1340,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get Project Overview",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Project Allocations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project Overview": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Project Allocations": {
+      "main": [
+        [
+          {
+            "node": "Merge Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Data": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Recommendations",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Recommendations": {
+      "main": [
+        [
+          {
+            "node": "Respond to App",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

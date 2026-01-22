@@ -10,7 +10,7 @@ import { getProjectTotalHours } from '@/actions/timesheet';
 import RecentActivity from '@/components/RecentActivity';
 import ReportGenerator from '@/components/ReportGenerator';
 import { updateDomainTimezone } from '@/actions/timezone';
-import AIRecommendations from '@/components/AIRecommendations';
+
 
 export default async function ProjectPage({
     params,
@@ -165,7 +165,6 @@ export default async function ProjectPage({
         </div>
         
         <div style={{ marginLeft: 'auto', alignSelf: 'flex-start', display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <AIRecommendations projectKey={key} />
             <QuickLinksManager projectKey={key} />
         </div>
       </header>

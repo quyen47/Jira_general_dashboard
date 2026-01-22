@@ -7,6 +7,7 @@ import BurnDownChart from './BurnDownChart';
 import { calculateScheduleInsights, calculateBudgetInsights, generateAlerts, generateRecommendations } from '@/lib/insights';
 import MetricCard from './MetricCard';
 import InsightsPanel from './InsightsPanel';
+import AIRecommendations from './AIRecommendations';
 
 // --- Types ---
 interface OverviewData {
@@ -510,7 +511,10 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
 
                       {/* Insights Panel */}
                       <div style={{ marginBottom: '30px' }}>
-                        <InsightsPanel recommendations={recommendations} />
+                        <InsightsPanel 
+                            recommendations={recommendations} 
+                            headerAction={<AIRecommendations projectKey={projectKey} />}
+                        />
                       </div>
                     </>
                   );
