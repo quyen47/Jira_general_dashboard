@@ -157,23 +157,42 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
   const loadData = () => {
     startTransition(async () => {
       const range = getDateRange();
-      const result = await getProjectWorklogs(projectKey, range);
-      setData(result.data);
-      setBaseUrl(result.baseUrl);
       
-      // Extract unique account IDs from worklog data
+      // Parallel fetch of Worklogs and Allocations
+      const [worklogsResult, allocsList] = await Promise.all([
+        getProjectWorklogs(projectKey, range),
+        getAllocations(projectKey, range.startDate, range.endDate)
+      ]);
+
+      setData(worklogsResult.data);
+      setBaseUrl(worklogsResult.baseUrl);
+      
+      // Process Allocations
+      const allocMap = new Map<string, ResourceAllocation[]>();
+      allocsList.forEach((alloc: ResourceAllocation) => {
+        const existing = allocMap.get(alloc.accountId) || [];
+        existing.push(alloc);
+        allocMap.set(alloc.accountId, existing);
+      });
+      setAllocations(allocMap);
+      
+      // Collect ALL Account IDs for PTO (Worklogs + Allocations)
       const accountIds = new Set<string>();
-      Object.values(result.data).forEach(dayData => {
+      
+      // From Worklogs
+      Object.values(worklogsResult.data).forEach(dayData => {
         Object.keys(dayData).forEach(accountId => {
           accountIds.add(accountId);
         });
       });
       
-      // Load allocations and PTO data in parallel
-      await Promise.all([
-        loadAllocations(),
-        loadPTOData(Array.from(accountIds))
-      ]);
+      // From Allocations
+      allocsList.forEach(alloc => {
+        accountIds.add(alloc.accountId);
+      });
+      
+      // Fetch PTO
+      await loadPTOData(Array.from(accountIds));
     });
   };
 
@@ -208,18 +227,32 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
 
   const dates = getDates();
 
-  // Get unique users
+  // Get unique users (from Worklogs AND Allocations)
   const getUsers = () => {
-    if (!data) return [];
-    
     const usersMap = new Map<string, { accountId: string; displayName: string; avatarUrl?: string }>();
     
-    Object.values(data).forEach(dayData => {
-      Object.values(dayData).forEach(userEntry => {
-        if (!usersMap.has(userEntry.author.accountId)) {
-          usersMap.set(userEntry.author.accountId, userEntry.author);
-        }
+    // 1. From Worklogs
+    if (data) {
+      Object.values(data).forEach(dayData => {
+        Object.values(dayData).forEach(userEntry => {
+          if (!usersMap.has(userEntry.author.accountId)) {
+            usersMap.set(userEntry.author.accountId, userEntry.author);
+          }
+        });
       });
+    }
+
+    // 2. From Allocations
+    allocations.forEach((userAllocs, accountId) => {
+      if (!usersMap.has(accountId) && userAllocs.length > 0) {
+        // Use the first allocation to get user details
+        const first = userAllocs[0];
+        usersMap.set(accountId, {
+          accountId: first.accountId,
+          displayName: first.displayName,
+          avatarUrl: first.avatarUrl
+        });
+      }
     });
     
     return Array.from(usersMap.values()).sort((a, b) => a.displayName.localeCompare(b.displayName));
