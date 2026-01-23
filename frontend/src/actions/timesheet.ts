@@ -75,6 +75,10 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
     // We add 1 day to end date for strict inequality if needed, but JQL <= supports inclusive date
     const jql = `project = "${projectKey}" AND worklogDate >= "${startStr}" AND worklogDate <= "${endStr}"`;
     
+    console.log('[Timesheet Debug] Fetching worklogs for project:', projectKey);
+    console.log('[Timesheet Debug] Date Range:', startStr, 'to', endStr);
+    console.log('[Timesheet Debug] JQL:', jql);
+
     // Fetch issues with worklogs
     const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
       jql,
@@ -83,6 +87,39 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
     });
     
     const issues = search.issues || [];
+    console.log('[Timesheet Debug] Jira API returned issues count:', issues.length);
+
+    // FIX: Check for pagination in worklogs (Jira search API limits nested worklogs to 20)
+    // If an issue has more worklogs than returned in the search payload, we must fetch the full list separately.
+    const issuesNeedingFullWorklogs = issues.filter((issue: { fields: { worklog: { total: number; worklogs: string | any[]; }; }; }) => {
+        const total = issue.fields.worklog?.total || 0;
+        const returned = issue.fields.worklog?.worklogs?.length || 0;
+        return total > returned;
+    });
+
+    if (issuesNeedingFullWorklogs.length > 0) {
+        console.log(`[Timesheet Fix] Found ${issuesNeedingFullWorklogs.length} issues with truncated worklogs (total > 20). Fetching full details in parallel...`);
+        
+        await Promise.all(issuesNeedingFullWorklogs.map(async (issue: { id: any; fields: { worklog: { worklogs: any; }; }; key: any; }) => {
+            try {
+                // Fetch full worklogs for this issue
+                // Using issueIdOrKey to be safe
+                const fullWorklogData = await jira.issueWorklogs.getIssueWorklog({ 
+                    issueIdOrKey: issue.id 
+                });
+                
+                // Replace the partial list with the full list in the issue object
+                if (issue.fields.worklog && fullWorklogData.worklogs) {
+                    // Update the local issue object reference
+                    issue.fields.worklog.worklogs = fullWorklogData.worklogs;
+                    console.log(`[Timesheet Fix] Refilled ${issue.key}: Retrieved ${fullWorklogData.worklogs.length} worklogs (Total in Jira: ${fullWorklogData.total})`);
+                }
+            } catch (err) {
+                console.error(`[Timesheet Fix] Failed to fetch full worklogs for ${issue.key}`, err);
+            }
+        }));
+    }
+
     const timesheetData: TimesheetData = {};
     
     // Process dates for JS comparison
@@ -90,6 +127,9 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
     filterStartDate.setHours(0, 0, 0, 0);
     const filterEndDate = new Date(endStr);
     filterEndDate.setHours(23, 59, 59, 999);
+
+    let totalWorklogsFound = 0;
+    let totalWorklogsIncluded = 0;
 
     for (const issue of issues) {
       const worklogs = issue.fields.worklog?.worklogs || [];
@@ -99,6 +139,8 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
       const components = issue.fields.components?.map((c: any) => c.name) || [];
       const labels = issue.fields.labels || [];
       const issueUpdated = issue.fields.updated || '';
+
+      totalWorklogsFound += worklogs.length;
 
       for (const log of worklogs) {
         if (!log.started) continue;
@@ -111,6 +153,8 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
         if (logDate >= filterStartDate && logDate <= filterEndDate) {
           if (!log.author) continue;
           
+          totalWorklogsIncluded++;
+
           const accountId = log.author.accountId || 'unknown';
           
           // Initialize data structure
@@ -161,6 +205,8 @@ export async function getProjectWorklogs(projectKey: string, range?: number | Da
         }
       }
     }
+    
+    console.log(`[Timesheet Debug] Worklogs summary: Found ${totalWorklogsFound} total in issues, Included ${totalWorklogsIncluded} matching date range.`);
     
     return { data: timesheetData, baseUrl };
   } catch (e) {
