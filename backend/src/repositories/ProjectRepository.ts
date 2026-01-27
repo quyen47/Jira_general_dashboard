@@ -15,8 +15,64 @@ export class ProjectRepository {
   /**
    * Find all projects
    */
-  async findAll(): Promise<Project[]> {
-    return this.prisma.project.findMany({});
+  /**
+   * Find all projects with pagination and filtering
+   */
+  async findAll(params?: {
+    skip?: number;
+    take?: number;
+    search?: string;
+    status?: string;
+  }): Promise<Project[]> {
+    const { skip, take, search, status } = params || {};
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { key: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (status) {
+      where.overview = {
+        is: {
+          projectStatus: status,
+        },
+      };
+    }
+
+    return this.prisma.project.findMany({
+      skip,
+      take,
+      where,
+      orderBy: { key: 'asc' },
+    });
+  }
+
+  /**
+   * Count projects matching filters
+   */
+  async count(params?: { search?: string; status?: string }): Promise<number> {
+    const { search, status } = params || {};
+    const where: any = {};
+
+    if (search) {
+      where.OR = [
+        { name: { contains: search, mode: 'insensitive' } },
+        { key: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (status) {
+      where.overview = {
+        is: {
+          projectStatus: status,
+        },
+      };
+    }
+
+    return this.prisma.project.count({ where });
   }
 
   /**

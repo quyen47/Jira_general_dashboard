@@ -34,100 +34,101 @@ const DEFAULT_OVERVIEW = {
     clientLocation: 'Hawaii',
 };
 
-export default function PortfolioSummary({ projects }: { projects: Project[] }) {
+export default function PortfolioSummary() {
   const [data, setData] = useState<AggregatedData | null>(null);
   const [portfolioInsights, setPortfolioInsights] = useState<any>(null);
-  const [isLoadingInsights, setIsLoadingInsights] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const aggr: AggregatedData = {
-      phases: {},
-      health: { green: 0, yellow: 0, red: 0 },
-      margins: { high: 0, medium: 0, low: 0 },
-      values: { small: 0, medium: 0, large: 0, enterprise: 0, mega: 0 },
-      complexity: { Low: 0, Medium: 0, High: 0 },
-      locations: {}
-    };
-
-    projects.forEach(p => {
-      let overview: any = DEFAULT_OVERVIEW;
-      let budgetOverall: any[] = [];
-      
-      const saved = localStorage.getItem(`jira_dashboard_overview_${p.key}`);
-      if (saved) {
-        try {
-          const pData = JSON.parse(saved);
-          if (pData.overview) overview = { ...DEFAULT_OVERVIEW, ...pData.overview };
-          if (pData.budgetOverall) budgetOverall = pData.budgetOverall;
-        } catch (e) {
-          console.error(e);
-        }
-      }
-
-      // Phase
-      const phase = overview.currentPhase || 'Unknown';
-      aggr.phases[phase] = (aggr.phases[phase] || 0) + 1;
-
-      // Health
-      if (overview.schdHealth === 'green') aggr.health.green++;
-      else if (overview.schdHealth === 'yellow') aggr.health.yellow++;
-      else if (overview.schdHealth === 'red') aggr.health.red++;
-
-      // Margin
-      const marginStr = overview.currentMargin || '0%';
-      const margin = parseFloat(marginStr.replace('%', ''));
-      if (margin > 80) aggr.margins.high++;
-      else if (margin >= 50) aggr.margins.medium++;
-      else aggr.margins.low++;
-
-      // Complexity
-      const comp = overview.complexity || 'Medium';
-      if (aggr.complexity[comp as keyof typeof aggr.complexity] !== undefined) {
-          aggr.complexity[comp as keyof typeof aggr.complexity]++;
-      } else {
-          aggr.complexity['Medium']++; // Default
-      }
-
-      // Location
-      const loc = overview.clientLocation || 'Unknown';
-      aggr.locations[loc] = (aggr.locations[loc] || 0) + 1;
-      
-      // Value
-      // Fallback budget if not in saved data
-      const budgetStr = budgetOverall?.[1]?.budget || '$350,000'; // Default from ProjectOverview
-      const budget = parseFloat(budgetStr.replace(/[^0-9.]/g, ''));
-      
-      if (budget < 100000) aggr.values.small++;
-      else if (budget < 500000) aggr.values.medium++;
-      else if (budget < 1000000) aggr.values.large++;
-      else if (budget < 5000000) aggr.values.enterprise++;
-      else aggr.values.mega++;
-    });
-
-    setData(aggr);
-  }, [projects]);
-
-  // Fetch and calculate portfolio insights
-  useEffect(() => {
-    async function loadPortfolioInsights() {
-      setIsLoadingInsights(true);
+    async function loadData() {
+      setIsLoading(true);
       try {
-        const projectsData = await getAllProjectsOverview();
-        const insights = calculatePortfolioInsights(projectsData);
+        // Fetch all projects (lightweight, limit 1000)
+        const { projects } = await getAllProjectsOverview({ limit: 1000, enrich: false });
+        
+        // --- Aggregation Logic ---
+        const aggr: AggregatedData = {
+          phases: {},
+          health: { green: 0, yellow: 0, red: 0 },
+          margins: { high: 0, medium: 0, low: 0 },
+          values: { small: 0, medium: 0, large: 0, enterprise: 0, mega: 0 },
+          complexity: { Low: 0, Medium: 0, High: 0 },
+          locations: {}
+        };
+
+        projects.forEach((p: any) => {
+          let overview: any = DEFAULT_OVERVIEW;
+          let budgetOverall: any[] = [];
+          
+          // Legacy check or assume enriched p.overview is correct
+          // The action returns p.overview (from DB).
+          if (p.overview && Object.keys(p.overview).length > 0) {
+              overview = { ...DEFAULT_OVERVIEW, ...p.overview };
+          }
+          if (p.budget) {
+              // Action puts budget in p.budget
+              // But aggregation logic used legacy structure? 
+              // Let's stick to overview fields mostly.
+          }
+
+          // Phase
+          const phase = overview.currentPhase || 'Unknown';
+          aggr.phases[phase] = (aggr.phases[phase] || 0) + 1;
+
+          // Health
+          if (overview.schdHealth === 'green') aggr.health.green++;
+          else if (overview.schdHealth === 'yellow') aggr.health.yellow++;
+          else if (overview.schdHealth === 'red') aggr.health.red++;
+
+          // Margin
+          const marginStr = overview.currentMargin || '0%';
+          const margin = parseFloat(marginStr.replace('%', ''));
+          if (margin > 80) aggr.margins.high++;
+          else if (margin >= 50) aggr.margins.medium++;
+          else aggr.margins.low++;
+
+          // Complexity
+          const comp = overview.complexity || 'Medium';
+          if (aggr.complexity[comp as keyof typeof aggr.complexity] !== undefined) {
+              aggr.complexity[comp as keyof typeof aggr.complexity]++;
+          } else {
+              aggr.complexity['Medium']++;
+          }
+
+          // Location
+          const loc = overview.clientLocation || 'Unknown';
+          aggr.locations[loc] = (aggr.locations[loc] || 0) + 1;
+          
+          // Value
+          const budgetStr = overview.budget?.budget || '$350,000'; // Access from overview or budget object
+          const budget = parseFloat((budgetStr.toString()).replace(/[^0-9.]/g, ''));
+          
+          if (budget < 100000) aggr.values.small++;
+          else if (budget < 500000) aggr.values.medium++;
+          else if (budget < 1000000) aggr.values.large++;
+          else if (budget < 5000000) aggr.values.enterprise++;
+          else aggr.values.mega++;
+        });
+
+        setData(aggr);
+
+        // --- Insights Logic ---
+        const insights = calculatePortfolioInsights(projects);
         setPortfolioInsights(insights);
+
       } catch (error) {
-        console.error('Error loading portfolio insights:', error);
+        console.error('Error loading portfolio summary:', error);
       } finally {
-        setIsLoadingInsights(false);
+        setIsLoading(false);
       }
     }
     
-    if (projects.length > 0) {
-      loadPortfolioInsights();
-    }
-  }, [projects]);
+    loadData();
+  }, []);
 
-  if (!data) return null;
+  if (isLoading || !data) {
+     return <div style={{ padding: '20px', textAlign: 'center', color: '#5E6C84' }}>Loading summary...</div>;
+  }
 
   // Chart Rendering Helpers
   const renderDonut = (title: string, dataKey: any, colors: string[], isSemiCircle = true) => {
@@ -176,7 +177,7 @@ export default function PortfolioSummary({ projects }: { projects: Project[] }) 
       <div style={{ background: 'white', padding: '20px', borderRadius: '0 0 4px 4px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }}>
         
         {/* Portfolio Insights Dashboard */}
-        {!isLoadingInsights && portfolioInsights && (
+        {!isLoading && portfolioInsights && (
           <>
             {/* Metric Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>

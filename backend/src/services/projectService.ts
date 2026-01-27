@@ -14,11 +14,50 @@ export class ProjectService {
   }
 
   /**
-   * Get all projects
+   * Get all projects with pagination
    */
-  async getAllProjects(): Promise<Project[]> {
-    logger.info('Fetching all projects');
-    return this.repository.findAll();
+  async getAllProjects(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    status?: string;
+  }): Promise<{
+    data: Project[];
+    meta: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    };
+  }> {
+    logger.info('Fetching projects with params', params);
+
+    const page = params?.page || 1;
+    const limit = params?.limit || 10;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.repository.findAll({
+        skip,
+        take: limit,
+        search: params?.search,
+        status: params?.status,
+      }),
+      this.repository.count({
+        search: params?.search,
+        status: params?.status,
+      }),
+    ]);
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 
   /**

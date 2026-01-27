@@ -24,12 +24,23 @@ export class ProjectController extends BaseController {
 
   /**
    * GET /api/projects
-   * Get all projects
+   * Get all projects with pagination and filtering
    */
   async getAllProjects(req: Request, res: Response): Promise<void> {
     try {
-      const projects = await this.projectService.getAllProjects();
-      this.handleSuccess(res, projects);
+      const page = req.query.page ? parseInt(req.query.page as string, 10) : 1;
+      const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 10;
+      const search = req.query.search as string | undefined;
+      const status = req.query.status as string | undefined;
+
+      const result = await this.projectService.getAllProjects({
+        page,
+        limit,
+        search,
+        status,
+      });
+
+      this.handleSuccess(res, result);
     } catch (error) {
       this.handleError(error, res, 'getAllProjects');
     }

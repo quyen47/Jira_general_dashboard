@@ -1,42 +1,36 @@
-import { getJiraClient } from '@/lib/jira';
-import { logout } from '@/actions/login';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-
+import { getAllProjectsOverview } from '@/actions/portfolio';
 import ProjectTable from '@/components/ProjectListTable';
 import PortfolioSummary from '@/components/PortfolioSummary';
+import SyncProjectsButton from '@/components/SyncProjectsButton';
 
-export default async function Home() {
-  let projects: any[] = [];
-  
-  try {
-    const jira = await getJiraClient();
-    console.log("[Projects Overview] Fetching project list...");
-    console.log("[Projects Overview] API Call: jira.projects.searchProjects({})");
-    
-    // Fetch all projects
-    const result: any = await jira.projects.searchProjects({});
-    projects = Array.isArray(result) ? result : (result.values || []);
-    
-    console.log(`[Projects Overview] Received ${projects.length} projects.`);
-    if (projects.length > 0) {
-        console.log("[Projects Overview] Keys:", projects.map((p:any) => p.key).join(', '));
-        
-        // Sync with backend (fire and forget to not block UI, or await if critical)
-        // Since we are in a server component (async function), we can await it.
-        // However, we want the UI to load fast. But sync is fast. Let's await to ensure consistency.
-        const { syncProjectsWithBackend } = await import('@/lib/sync');
-        await syncProjectsWithBackend(projects);
-    }
-  } catch (e) {
-    // If not authorized or error, redirect to login
-    redirect('/login');
-  }
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const resolvedParams = await searchParams;
+  const page = typeof resolvedParams.page === 'string' ? parseInt(resolvedParams.page, 10) : 1;
+  // Default to 10 if not specified, or parses limit param
+  const limit = typeof resolvedParams.limit === 'string' ? parseInt(resolvedParams.limit, 10) : 10;
+  const search = typeof resolvedParams.search === 'string' ? resolvedParams.search : '';
+  const status = typeof resolvedParams.status === 'string' ? resolvedParams.status : '';
+
+  // Server Action call
+  const { projects, pagination } = await getAllProjectsOverview({
+    page,
+    limit,
+    search,
+    status,
+    enrich: true,
+  });
 
   return (
     <div className="dashboard-container">
-      <PortfolioSummary projects={projects} />
-      <ProjectTable projects={projects} />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '20px' }}>
+         <SyncProjectsButton />
+      </div>
+      <PortfolioSummary />
+      <ProjectTable projects={projects} pagination={pagination} />
     </div>
   );
 }
