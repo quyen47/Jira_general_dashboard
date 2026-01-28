@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { saveOverview, getStakeholders, saveStakeholders } from '@/lib/api';
+import { searchJiraUsers } from '@/actions/users';
 
 interface ProjectWithData {
   key: string;
@@ -18,6 +20,7 @@ interface ProjectWithData {
   schdHealth: 'green' | 'yellow' | 'red';
   timelineProgress: number;
   lead?: string;
+  overview: any;
 }
 
 interface PaginationMeta {
@@ -39,6 +42,16 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
   // Local state for search input to handle debouncing
   const [searchTerm, setSearchTerm] = useState(searchParams.get('search') || '');
 
+  // Edit State
+  const [editingCell, setEditingCell] = useState<{ key: string, field: string } | null>(null);
+  const [editValue, setEditValue] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Lead Search State
+  const [userQuery, setUserQuery] = useState('');
+  const [userResults, setUserResults] = useState<any[]>([]);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   // Debounce search update
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -50,6 +63,19 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
 
     return () => clearTimeout(timer);
   }, [searchTerm, searchParams]);
+
+  // Click outside to close edit
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        // If searching for user, don't close immediately if clicking in results (handled by ref)
+      }
+      // Simple way: if clicking outside the table or active cell logic could be complex
+      // For now, we rely on onBlur or explicit actions
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const updateUrl = (updates: Record<string, string | null>) => {
     const params = new URLSearchParams(Array.from(searchParams.entries()));
@@ -78,6 +104,137 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
     if (page < 1 || page > pagination.totalPages) return;
     updateUrl({ page: page.toString() });
   };
+
+  // --- Edit Handlers ---
+
+  const startEdit = async (project: ProjectWithData, field: string) => {
+    setEditingCell({ key: project.key, field });
+    
+    if (field === 'projectStatus') {
+        setEditValue(project.projectStatus || '');
+    } else if (field === 'schdHealth') {
+        setEditValue(project.schdHealth || 'yellow');
+    } else if (field === 'lead') {
+        setEditValue(''); 
+        setUserQuery('');
+        setUserResults([]);
+        // Optionally fetch current stakeholders to preload? 
+        // Not strictly necessary if we just search and replace.
+    }
+  };
+
+  const cancelEdit = () => {
+      setEditingCell(null);
+      setEditValue('');
+      setUserResults([]);
+  };
+
+  const saveProjectStatus = async (project: ProjectWithData, newStatus: string) => {
+      if (newStatus === project.projectStatus) {
+          cancelEdit();
+          return;
+      }
+      setIsLoading(true);
+      try {
+          const updatedOverview = {
+              ...project.overview,
+              projectStatus: newStatus
+          };
+          await saveOverview(project.key, updatedOverview);
+          router.refresh();
+      } catch (error) {
+          console.error("Failed to update status", error);
+          alert("Failed to update status");
+      } finally {
+          setIsLoading(false);
+          cancelEdit();
+      }
+  };
+
+  const saveHealth = async (project: ProjectWithData, newHealth: string) => {
+      if (newHealth === project.schdHealth) {
+          cancelEdit();
+          return;
+      }
+      setIsLoading(true);
+      try {
+          const updatedOverview = {
+              ...project.overview,
+              schdHealth: newHealth
+          };
+          await saveOverview(project.key, updatedOverview);
+          router.refresh();
+      } catch (error) {
+          console.error("Failed to update health", error);
+          alert("Failed to update health");
+      } finally {
+          setIsLoading(false);
+          cancelEdit();
+      }
+  };
+
+  const handleUserSearch = async (q: string) => {
+      setUserQuery(q);
+      if (q.length < 2) {
+          setUserResults([]);
+          return;
+      }
+      try {
+          const results = await searchJiraUsers(q);
+          setUserResults(results);
+      } catch (e) {
+          console.error(e);
+      }
+  };
+
+  const selectLead = async (project: ProjectWithData, user: any) => {
+      setIsLoading(true);
+      try {
+          // 1. Fetch current stakeholders
+          const currentStakeholders = await getStakeholders(project.key);
+          let stakeholders = currentStakeholders || [];
+
+          // 2. Find DHA Project Manager or create
+          const dhaRole = 'DHA Project Manager';
+          const existingIndex = stakeholders.findIndex((s: any) => s.role === dhaRole);
+
+          if (existingIndex >= 0) {
+              stakeholders[existingIndex].user = {
+                  accountId: user.accountId,
+                  displayName: user.displayName,
+                  avatarUrl: user.avatarUrl
+              };
+              stakeholders[existingIndex].accountId = user.accountId; // Ensure flattened compatibility if backend needs it
+              stakeholders[existingIndex].displayName = user.displayName;
+              stakeholders[existingIndex].avatarUrl = user.avatarUrl;
+          } else {
+              stakeholders.push({
+                  id: Date.now().toString(),
+                  role: dhaRole,
+                  user: {
+                      accountId: user.accountId,
+                      displayName: user.displayName,
+                      avatarUrl: user.avatarUrl
+                  },
+                  accountId: user.accountId,
+                  displayName: user.displayName,
+                  avatarUrl: user.avatarUrl
+              });
+          }
+
+          // 3. Save
+          await saveStakeholders(project.key, stakeholders);
+          router.refresh();
+      } catch (error) {
+          console.error("Failed to update lead", error);
+          alert("Failed to update lead");
+      } finally {
+          setIsLoading(false);
+          cancelEdit();
+      }
+  };
+
+  // --- Render Helpers ---
 
   const renderStatusBadge = (
     status: 'ahead' | 'on-track' | 'behind' | 'overtime' | 'healthy' | 'at-risk' | 'over-budget' | 'unknown',
@@ -189,7 +346,7 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
         </div>
       </div>
 
-      <div style={{ overflowX: 'auto' }}>
+      <div style={{ overflowX: 'auto', minHeight: '400px' }}> {/* Added minHeight for dropdowns */}
         <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, minWidth: '1000px' }}>
           <thead>
             <tr style={{ background: '#F4F5F7' }}>
@@ -214,6 +371,9 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
                 Status
               </th>
               <th style={{ padding: '12px', borderBottom: '2px solid #DFE1E6', textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, color: '#172B4D' }}>
+                Health
+              </th>
+              <th style={{ padding: '12px', borderBottom: '2px solid #DFE1E6', textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, color: '#172B4D' }}>
                 Schedule
               </th>
               <th style={{ padding: '12px', borderBottom: '2px solid #DFE1E6', textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, color: '#172B4D' }}>
@@ -225,7 +385,7 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
               <th style={{ padding: '12px', borderBottom: '2px solid #DFE1E6', textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, color: '#172B4D' }}>
                 Budget Spent
               </th>
-              <th style={{ padding: '12px', borderBottom: '2px solid #DFE1E6', textAlign: 'left', fontSize: '0.85rem', fontWeight: 600, color: '#172B4D' }}>
+              <th style={{ padding: '12px', borderBottom: '2px solid #DFE1E6', textAlign: 'center', fontSize: '0.85rem', fontWeight: 600, color: '#172B4D', minWidth: '200px' }}>
                 Lead
               </th>
             </tr>
@@ -233,7 +393,7 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
           <tbody>
             {projects.length === 0 ? (
               <tr>
-                <td colSpan={7} style={{ textAlign: 'center', padding: '40px', color: '#5E6C84' }}>
+                <td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: '#5E6C84' }}>
                   No projects found.
                 </td>
               </tr>
@@ -272,17 +432,68 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
                       </div>
                     </Link>
                   </td>
-                  <td style={{ textAlign: 'center', borderBottom: '1px solid #EEE', padding: '12px' }}>
-                    {/* Status from schdHealth */}
-                    <div style={{
-                      width: 16,
-                      height: 16,
-                      borderRadius: '50%',
-                      background: project.schdHealth === 'green' ? '#36B37E' :
-                                 project.schdHealth === 'red' ? '#FF5630' : '#FFAB00',
-                      margin: '0 auto',
-                    }} />
+
+                  {/* Editable Project Status */}
+                  <td 
+                      style={{ textAlign: 'center', borderBottom: '1px solid #EEE', padding: '12px', fontSize: '0.85rem', color: '#172B4D', cursor: 'pointer' }}
+                      onClick={() => !editingCell && startEdit(project, 'projectStatus')}
+                  >
+                    {editingCell?.key === project.key && editingCell?.field === 'projectStatus' ? (
+                         <select 
+                            autoFocus
+                            value={editValue}
+                            onChange={(e) => {
+                                setEditValue(e.target.value);
+                                saveProjectStatus(project, e.target.value);
+                            }}
+                            onBlur={() => !isLoading && cancelEdit()}
+                            style={{ padding: '4px', borderRadius: 4, width: '100%' }}
+                            onClick={(e) => e.stopPropagation()}
+                         >
+                             <option value="To Do">To Do</option>
+                             <option value="On Going">On Going</option>
+                             <option value="On Hold">On Hold</option>
+                             <option value="Closed">Closed</option>
+                             <option value="">Unknown</option>
+                         </select>
+                    ) : (
+                        project.projectStatus || 'Unknown'
+                    )}
                   </td>
+
+                  {/* Editable Health (schdHealth) */}
+                  <td 
+                      style={{ textAlign: 'center', borderBottom: '1px solid #EEE', padding: '12px', cursor: 'pointer' }}
+                      onClick={() => !editingCell && startEdit(project, 'schdHealth')}
+                  >
+                    {editingCell?.key === project.key && editingCell?.field === 'schdHealth' ? (
+                        <select 
+                            autoFocus
+                            value={editValue}
+                            onChange={(e) => {
+                                setEditValue(e.target.value);
+                                saveHealth(project, e.target.value);
+                            }}
+                            onBlur={() => !isLoading && cancelEdit()}
+                            style={{ padding: '4px', borderRadius: 4 }}
+                            onClick={(e) => e.stopPropagation()}
+                         >
+                             <option value="green">Green</option>
+                             <option value="yellow">Yellow</option>
+                             <option value="red">Red</option>
+                         </select>
+                    ) : (
+                        <div style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: '50%',
+                          background: project.schdHealth === 'green' ? '#36B37E' :
+                                     project.schdHealth === 'red' ? '#FF5630' : '#FFAB00',
+                          margin: '0 auto',
+                        }} />
+                    )}
+                  </td>
+
                   <td style={{ textAlign: 'center', borderBottom: '1px solid #EEE', padding: '12px' }}>
                     {renderProgressBar(project.timelineProgress, '#0052CC')}
                   </td>
@@ -300,8 +511,55 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
                       </div>
                     </div>
                   </td>
-                  <td style={{ borderBottom: '1px solid #EEE', padding: '12px', fontSize: '0.85rem', color: '#172B4D' }}>
-                    {project.lead || <span style={{ color: '#5E6C84' }}>-</span>}
+
+                  {/* Editable Lead */}
+                  <td 
+                      style={{ borderBottom: '1px solid #EEE', padding: '12px', fontSize: '0.85rem', color: '#172B4D', position: 'relative', cursor: 'pointer' }}
+                      onClick={() => !editingCell && startEdit(project, 'lead')}
+                  >
+                     {editingCell?.key === project.key && editingCell?.field === 'lead' ? (
+                         <div style={{ position: 'relative' }} ref={searchRef} onClick={(e) => e.stopPropagation()}>
+                             <input 
+                                autoFocus
+                                value={userQuery}
+                                onChange={(e) => handleUserSearch(e.target.value)}
+                                placeholder="Search user..."
+                                style={{ width: '100%', padding: '4px', fontSize: '0.8rem' }}
+                             />
+                             {/* Results Dropdown */}
+                             {userResults.length > 0 && (
+                                <div style={{ 
+                                    position: 'absolute', top: '100%', left: 0, minWidth: '200px',
+                                    background: 'white', border: '1px solid #dfe1e6', borderRadius: 4, 
+                                    maxHeight: '150px', overflowY: 'auto', zIndex: 100, boxShadow: '0 4px 8px rgba(0,0,0,0.1)' 
+                                }}>
+                                     {userResults.map(u => (
+                                         <div 
+                                            key={u.accountId}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                selectLead(project, u);
+                                            }}
+                                            style={{ padding: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #eee' }}
+                                         >
+                                             <img src={u.avatarUrl} style={{ width: 20, height: 20, borderRadius: '50%' }} />
+                                             <span>{u.displayName}</span>
+                                         </div>
+                                     ))}
+                                </div>
+                             )}
+                             {/* Cancel/Close Button */}
+                             <button 
+                                onClick={(e) => { e.stopPropagation(); cancelEdit(); }}
+                                style={{ position: 'absolute', right: 0, top: -20, fontSize: '0.7rem', border: 'none', background: 'none', cursor: 'pointer' }}
+                             >Cancel</button>
+                         </div>
+                     ) : (
+                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                             {project.lead || <span style={{ color: '#5E6C84' }}>Unassigned</span>}
+                             <span style={{ fontSize: '0.7rem', color: '#ccc' }}>✎</span>
+                         </div>
+                     )}
                   </td>
                 </tr>
               ))

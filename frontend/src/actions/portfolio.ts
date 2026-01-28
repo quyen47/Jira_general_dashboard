@@ -164,6 +164,10 @@ export async function getAllProjectsOverview({
             }
           }
 
+          // Determine Lead (DHA Project Manager)
+          const dhaPm = project.stakeholders?.find((s: any) => s.role === 'DHA Project Manager');
+          const finalLead = dhaPm?.displayName || project.lead || 'Unassigned';
+
           // Calculate offshore budget health
           const offshorePercentSpent = offshoreBudget > 0 ? (offshoreSpentHours / offshoreBudget) * 100 : 0;
           let budgetHealth = 'unknown';
@@ -189,10 +193,10 @@ export async function getAllProjectsOverview({
             percentSpent: offshorePercentSpent,
             offshoreSpentHours,
             offshoreBudgetHours: offshoreBudget,
-            projectStatus: overview.projectStatus || '',
+            projectStatus: overview.projectStatus || 'Unknown',
             schdHealth: overview.schdHealth || 'yellow',
             timelineProgress,
-            lead: project.lead?.displayName || project.lead, // Handle object or string
+            lead: finalLead,
           };
         } catch (error) {
           console.error(`Error fetching overview/enrichment for ${project.key}:`, error);
@@ -208,10 +212,10 @@ export async function getAllProjectsOverview({
             percentSpent: 0,
             offshoreSpentHours: 0,
             offshoreBudgetHours: 0,
-            projectStatus: project.overview?.projectStatus || '',
+            projectStatus: project.overview?.projectStatus || 'Unknown',
             schdHealth: 'yellow',
             timelineProgress: 0,
-            lead: project.lead,
+            lead: project.lead || 'Unassigned',
           };
         }
       })
