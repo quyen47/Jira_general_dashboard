@@ -5,14 +5,16 @@ import React, { useState, useMemo } from 'react';
 // Workaround for import issues with some setups, but usually named import works if types are correct
 import { Gantt, Task, ViewMode } from 'gantt-task-react';
 import "gantt-task-react/dist/index.css";
-import { GanttTaskData } from '@/actions/gantt';
+import { GanttTaskData, getProjectSchedule } from '@/actions/gantt';
 
 interface WBSGanttChartProps {
   tasks: GanttTaskData[];
   baseUrl?: string;
+  projectKey?: string;
 }
 
-export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGanttChartProps) {
+export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey }: WBSGanttChartProps) {
+  const [allTasks, setAllTasks] = useState<GanttTaskData[]>(initialTasks);
   const [viewMode, setViewMode] = useState<ViewMode>(ViewMode.Week);
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
@@ -25,11 +27,11 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
   // start: Date; end: Date; dependencies?: string[]; project?: string; hideChildren?: boolean; displayOrder?: number;
   const ganttTasks: Task[] = useMemo(() => {
     // 1. Sort Hierarchy (DFS to ensure children are below parents)
-    const idSet = new Set(initialTasks.map(t => t.id));
+    const idSet = new Set(allTasks.map(t => t.id));
     const roots: GanttTaskData[] = [];
     const childrenMap = new Map<string, GanttTaskData[]>();
     
-    initialTasks.forEach(t => {
+    allTasks.forEach(t => {
       // If task has a parent and that parent is also in the list, it's a child node
       if (t.project && idSet.has(t.project)) {
          if (!childrenMap.has(t.project)) childrenMap.set(t.project, []);
@@ -53,7 +55,7 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
     traverse(roots);
 
     // 2. Helper map for hierarchy lookup (visibilty check)
-    const taskMap = new Map(initialTasks.map(t => [t.id, t]));
+    const taskMap = new Map(allTasks.map(t => [t.id, t]));
     
     // Recursive check if a task is hidden due to an ancestor being collapsed
     const isSectionHidden = (taskId: string): boolean => {
@@ -77,6 +79,12 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
       // we must also hide its children so they don't dangle.
       const taskIsHidden = isSectionHidden(t.id);
       
+      // Determine if strictly collapsed:
+      // User explicit collapse OR (Has Children AND Not Loaded)
+      const childrenLoaded = childrenMap.has(t.id); // childrenMap is built from allTasks
+      const isLazyCollapsed = (t.hasChildren || false) && !childrenLoaded;
+      const isCollapsed = collapsedTasks.includes(t.id) || isLazyCollapsed;
+
       return {
         id: t.id,
         name: t.name,
@@ -94,14 +102,42 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
         },
         // Store original formatting/data in hidden props or use a wrapper map if needed
         // but component allows custom columns so we can access original data via ID lookup if needed
-        hideChildren: collapsedTasks.includes(t.id) || taskIsHidden
+        hideChildren: isCollapsed || taskIsHidden
       };
     });
 
     return mappedTasks.filter(t => !isSectionHidden(t.id));
-  }, [initialTasks, showCriticalPath, collapsedTasks]);
+  }, [allTasks, showCriticalPath, collapsedTasks]);
 
-  const handleExpanderClick = (task: Task) => {
+  const handleExpanderClick = async (task: Task) => {
+    // Lazy Load Check
+    const original = allTasks.find(t => t.id === task.id);
+    const childrenLoaded = allTasks.some(t => t.project === task.id);
+    
+    // If it has children conceptualy, but they are not loaded, load them
+    if (original?.hasChildren && !childrenLoaded && projectKey) {
+        try {
+            const newTasks = await getProjectSchedule(projectKey, task.id);
+            if (newTasks.length > 0) {
+                setAllTasks(prev => {
+                    const ids = new Set(prev.map(p => p.id));
+                    return [...prev, ...newTasks.filter(n => !ids.has(n.id))];
+                });
+                
+                // If we successfully loaded children, we naturally want to Expand.
+                // The logical "forced collapse" (isLazyCollapsed) will evaluate to false now (since childrenLoaded will be true).
+                // But we also need to ensure it's NOT in `collapsedTasks`.
+                setCollapsedTasks(prev => prev.filter(id => id !== task.id));
+                return;
+            } else {
+               // No children found despite flag? Just expand to show nothing or keep as is?
+               // Toggle normal logic
+            }
+        } catch (e) {
+            console.error('Lazy load failed', e);
+        }
+    }
+
     setCollapsedTasks(prev => {
       if (prev.includes(task.id)) {
         return prev.filter(id => id !== task.id);
@@ -135,15 +171,15 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
       return (
           <div style={{ fontFamily: 'inherit' }}>
               {tasks.map((t: Task, i: number) => {
-                  const original = initialTasks.find(it => it.id === t.id);
+                  const original = allTasks.find(it => it.id === t.id);
                   const issueUrl = baseUrl && original?.jiraKey ? `${baseUrl}/browse/${original.jiraKey}` : '#';
                   
                   // Hierarchy
-                  const hasChildren = initialTasks.some(it => it.project === t.id);
+                  const hasChildren = original?.hasChildren || allTasks.some(it => it.project === t.id);
                   let indentLevel = 0;
                   if (t.project) {
                       indentLevel = 1;
-                      const parent = initialTasks.find(it => it.id === t.project);
+                      const parent = allTasks.find(it => it.id === t.project);
                       if (parent && parent.project) {
                           indentLevel = 2;
                       }

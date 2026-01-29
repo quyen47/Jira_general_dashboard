@@ -179,7 +179,7 @@ export default async function ProjectPage({
       </div>
 
       <div style={{ marginBottom: '2rem' }}>
-          <WBSGanttChart tasks={schedule} baseUrl={baseUrl} />
+          <WBSGanttChart tasks={schedule} baseUrl={baseUrl} projectKey={key} />
       </div>
 
       <Timesheet projectKey={key} initialOpen={true} />

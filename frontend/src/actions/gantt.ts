@@ -20,21 +20,31 @@ export interface GanttTaskData {
   issueType?: { name: string, iconUrl: string };
   originalStart?: Date; // For baseline
   originalEnd?: Date;   // For baseline
+  hasChildren?: boolean; // For lazy loading
 }
 
-export async function getProjectSchedule(projectKey: string): Promise<GanttTaskData[]> {
+export async function getProjectSchedule(projectKey: string, parentId?: string): Promise<GanttTaskData[]> {
   try {
     const jira = await getJiraClient();
     
-    // 1. Fetch Issues with Hierarchy and Links
-    // We fetch Epics, Standard issues, and Subtasks
-    // We need 'issuelinks' to map dependencies
-    const jql = `project = "${projectKey}" ORDER BY rank ASC, created ASC`;
+    // 1. Determine JQL for Lazy Loading
+    // If parentId is provided, fetch direct children.
+    // If not, fetch "Roots" (Issues without parents).
+    let jql = '';
+    if (parentId) {
+        // Fetch children of the specific parent (Works for Epic -> Story and Story -> Subtask)
+        // Note: 'parent' field works for both in modern Jira Cloud. 
+        // For older instances, might need ' "Epic Link" = ... ' for Epics, but 'parent' is the safe standard attempt first.
+        jql = `project = "${projectKey}" AND parent = "${parentId}" ORDER BY rank ASC, created ASC`;
+    } else {
+        // Fetch Root Level (Epics, or tasks/stories with no parent)
+        jql = `project = "${projectKey}" AND parent is EMPTY ORDER BY rank ASC, created ASC`;
+    }
     
     // We need to fetch enough fields
     const searchResult = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
       jql,
-      maxResults: 200, // Limit for performance, might need pagination for huge projects
+      maxResults: 100, // Fetch chunk
       fields: [
         'summary', 
         'status', 
@@ -47,7 +57,7 @@ export async function getProjectSchedule(projectKey: string): Promise<GanttTaskD
         'subtasks',
         'parent', // For hierarchy
         'timetracking', // For progress based on time spent? Or just status category
-        'customfield_10015' // Start date (often configured, but key varies. Using created as fallback)
+        'customfield_10015' // Start date
       ]
     });
 
@@ -70,8 +80,6 @@ export async function getProjectSchedule(projectKey: string): Promise<GanttTaskD
         const fields = issue.fields as any;
         
         // Dates
-        // Try to find a real start date, fallback to created
-        // Try to find a real due date, fallback to created + 1 week or estimate
         const created = parseDate(fields.created);
         const start = fields.customfield_10015 ? parseDate(fields.customfield_10015) : created;
         
@@ -84,55 +92,45 @@ export async function getProjectSchedule(projectKey: string): Promise<GanttTaskD
         }
 
         // Dependencies
-        // "Blocks" link usually means Outward issue BLOCKS Inward issue.
-        // So Inward issue DEPENDS ON Outward issue.
-        // Link type names vary by Jira instance. Common: "Blocks", "Cloners", "Relates"
-        // We will assume 'Blocks' (inward: 'is blocked by', outward: 'blocks')
-        // If Issue A blocks Issue B:
-        // A (outward 'blocks') -> B
-        // B (inward 'is blocked by') -> A.
-        // So B depends on A. 
-        // We look for 'inwardIssue' with type name 'Blocks' (or checking type.inward === 'is blocked by')
-        
         const dependencies: string[] = [];
         if (fields.issuelinks) {
             fields.issuelinks.forEach((link: any) => {
-                // Adjust logic based on standard Jira "Blocks" link type
                 if (link.type.inward === 'is blocked by' && link.inwardIssue) {
-                    // This issue is blocked by link.inwardIssue
-                    // Only include if the dependency is also in our project/list to avoid broken links
-                    // Ideally we check if link.inwardIssue.key is in our fetched list, but we can't easily O(N) check inside loop without map.
-                    // We'll let the frontend or library filter invalid deps, or just add them.
                     dependencies.push(link.inwardIssue.id);
                 }
             });
         }
         
-        // Parent-Child Dependency (Hierarchy)
-        // gantt-task-react uses 'project' field to group tasks? 
-        // Or we can just use dependencies to enforce order?
-        // Actually gantt-task-react uses a flat list. It has a 'project' property to group list items under a collapsible header task.
-        // So Epics should be Type: 'project'. Stories under Epic should Reference Epic ID as 'project'.
-        
+        // Hierarchy Type & Parent
         let type: 'project' | 'task' | 'milestone' = 'task';
         let projectRef = undefined;
 
         if (fields.issuetype?.name === 'Epic') {
             type = 'project';
         } else if (fields.parent) {
-             // Subtask or Story with Parent
-             // Note: Standard issues (Stories) usually don't have 'parent' field in simplified views unless using new Jira view or Subtasks.
-             // But Epics are linked via 'customfield_10014' (Epic Link) in older Jira, or 'parent' in newer.
-             // We'll try to handle the 'parent' field which is becoming standard.
              if (fields.parent.id) {
                  projectRef = fields.parent.id;
              }
         }
         
-        // If it's a subtask, it definitely has a parent.
         if (fields.issuetype?.subtask && fields.parent) {
             projectRef = fields.parent.id;
         }
+
+        // Parent Logic Correction for Lazy Load Context
+        // If we fetched regular roots, they wont have 'fields.parent' set usually (as per JQL).
+        // If we fetched children, 'fields.parent' might be present.
+        // We ensure 'project' (parentId) is set correctly if we know the parent from context? 
+        // Actually, best to rely on Issue Data. 
+        // If we fetched children of 'X', then 'project' should be 'X'.
+        // Jira 'parent' field result is reliable.
+
+        // Has Children Logic
+        // 1. If Subtasks exist -> true
+        // 2. If Epic -> true (assume)
+        let hasChildren = false;
+        if (fields.subtasks && fields.subtasks.length > 0) hasChildren = true;
+        if (fields.issuetype?.name === 'Epic') hasChildren = true;
 
         tasks.push({
             id: issue.id,
@@ -157,9 +155,10 @@ export async function getProjectSchedule(projectKey: string): Promise<GanttTaskD
                 name: fields.issuetype.name,
                 iconUrl: fields.issuetype.iconUrl
             } : undefined,
-            // Mock baseline for now (random shift from actual) to demonstrate feature
+            // Mock baseline
             originalStart: new Date(start.getTime() - (Math.random() * 5 * 24 * 60 * 60 * 1000)),
-            originalEnd: end
+            originalEnd: end,
+            hasChildren
         });
     });
 
