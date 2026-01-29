@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 // import { Gantt, Task, ViewMode, EventOption } from 'gantt-task-react';
 // Workaround for import issues with some setups, but usually named import works if types are correct
 import { Gantt, Task, ViewMode } from 'gantt-task-react';
@@ -20,6 +20,21 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
   const [showBaselines, setShowBaselines] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
   const [collapsedTasks, setCollapsedTasks] = useState<string[]>([]);
+  
+  const headerRef = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+
+  const handleBodyScroll = (e: React.UIEvent<HTMLDivElement>) => {
+     const target = e.target as HTMLElement;
+     if (headerRef.current) {
+         const divs = headerRef.current.querySelectorAll('div');
+         divs.forEach(d => {
+             if (d.scrollWidth > d.clientWidth) {
+                 d.scrollLeft = target.scrollLeft;
+             }
+         });
+     }
+  };
 
   // Transform data for the library
   // Library Task interface:
@@ -155,14 +170,24 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
   /* 
    * Custom list cell renderer to show Jira details
    */
+  /* 
+   * Custom list cell renderer to show Jira details
+   */
   const TaskListHeader = ({ headerHeight }: { headerHeight: number }) => {
       return (
-          <div style={{ height: headerHeight, display: 'flex', fontWeight: 'bold', borderBottom: '1px solid #dfe1e6', alignItems: 'center', background: '#f4f5f7' }}>
-              <div style={{ minWidth: 30, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>#</div>
-              <div style={{ minWidth: 25, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>T</div>
-              <div style={{ minWidth: 65, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Key</div>
-              <div style={{ minWidth: 85, padding: '0 8px', borderRight: '1px solid #dfe1e6', flex: 1 }}>Summary</div>
-              <div style={{ minWidth: 55, padding: '0 4px' }}>Status</div>
+          <div style={{ 
+              height: headerHeight, 
+              display: 'flex', 
+              fontWeight: 600, 
+              borderBottom: '1px solid #dfe1e6', 
+              alignItems: 'center', 
+              background: '#f4f5f7',
+          }}>
+              <div style={{ minWidth: 40, width: 40, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>#</div>
+              <div style={{ minWidth: 30, width: 30, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>T</div>
+              <div style={{ minWidth: 130, width: 130, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Key</div>
+              <div style={{ minWidth: 500, width: 500, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Summary</div>
+              <div style={{ minWidth: 100, width: 100, padding: '0 4px', textAlign: 'center' }}>Status</div>
           </div>
       );
   };
@@ -186,22 +211,39 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
                   }
                   const paddingLeft = indentLevel * 14;
 
+                  // Status Coloring Logic
+                  const getStatusStyle = (status: string = '') => {
+                      const s = status.toLowerCase();
+                      if (['done', 'complete', 'resolved', 'closed', 'success'].some(k => s.includes(k))) {
+                           return { bg: '#E3FCEF', color: '#006644' };
+                      }
+                      if (['in progress', 'review', 'testing', 'qa', 'uat', 'development'].some(k => s.includes(k))) {
+                           return { bg: '#DEEBFF', color: '#0052CC' };
+                      }
+                      if (['to do', 'backlog', 'open', 'new', 'pending'].some(k => s.includes(k))) {
+                           return { bg: '#DFE1E6', color: '#42526E' };
+                      }
+                      return { bg: '#DFE1E6', color: '#42526E' }; // Default
+                  };
+                  
+                  const statusStyle = getStatusStyle(original?.status);
+
                   return (
                       <div key={t.id} style={{ height: rowHeight, display: 'flex', alignItems: 'center', borderBottom: '1px solid #f4f5f7', background: 'white' }}>
-                          <div style={{ minWidth: 30, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center', color: '#6B778C', fontSize: '0.8rem' }}>
+                          <div style={{ minWidth: 40, width: 40, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center', color: '#6B778C', fontSize: '0.8rem' }}>
                               {i + 1}
                           </div>
-                          <div style={{ minWidth: 25, padding: '0 4px', borderRight: '1px solid #dfe1e6', display: 'flex', justifyContent: 'center' }}>
+                          <div style={{ minWidth: 30, width: 30, padding: '0 4px', borderRight: '1px solid #dfe1e6', display: 'flex', justifyContent: 'center' }}>
                               {original?.issueType?.iconUrl ? (
                                   <img src={original.issueType.iconUrl} alt={original.issueType.name} style={{ width: 16, height: 16 }} title={original.issueType.name} />
                               ) : (
                                   <span style={{ fontSize: '0.6rem' }}>{t.type.substring(0,1)}</span>
                               )}
                           </div>
-                          <div style={{ minWidth: 65, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>
+                          <div style={{ minWidth: 130, width: 130, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>
                               <a href={issueUrl} target="_blank" style={{ color: '#0052CC', textDecoration: 'none', fontSize: '0.85rem' }}>{original?.jiraKey}</a>
                           </div>
-                          <div style={{ minWidth: 85, padding: `0 8px`, borderRight: '1px solid #dfe1e6', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
+                          <div style={{ minWidth: 500, width: 500, padding: `0 8px`, borderRight: '1px solid #dfe1e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
                               <div style={{ width: paddingLeft, flexShrink: 0, textAlign: 'right', color: '#ccc', marginRight: 4, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                                   {indentLevel > 0 && <span style={{ borderLeft: '1px solid #ccc', borderBottom: '1px solid #ccc', width: 8, height: 8, display: 'inline-block', marginBottom: 4 }}></span>}
                               </div>
@@ -229,12 +271,13 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
                                 {t.name}
                               </a>
                           </div>
-                          <div style={{ minWidth: 55, padding: '0 4px', textAlign: 'center' }}>
+                          <div style={{ minWidth: 100, width: 100, padding: '0 4px', textAlign: 'center' }}>
                               <span style={{ 
-                                  background: original?.status === 'Done' ? '#E3FCEF' : '#DFE1E6', 
-                                  color: original?.status === 'Done' ? '#006644' : '#42526E',
-                                  padding: '2px 4px', borderRadius: 3, fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
-                                  maxWidth: '100%', display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                                  background: statusStyle.bg, 
+                                  color: statusStyle.color,
+                                  padding: '2px 6px', borderRadius: 3, fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                                  maxWidth: '100%', display: 'inline-block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  border: '1px solid transparent' // Placeholder for robustness
                               }} title={original?.status}>
                                   {original?.status}
                               </span>
@@ -311,30 +354,49 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
       </div>
 
       {ganttTasks.length > 0 ? (
-          <div style={{ overflowX: 'auto' }}>
-            <Gantt
-                tasks={ganttTasks}
-                viewMode={viewMode}
-                onDateChange={(task: Task) => {
-                    console.log('Task date changed:', task.name, task.start, task.end);
-                    // Here we would call a server action to update dates
-                }}
-                onProgressChange={(task, progress) => {
-                     console.log('Task progress changed:', task.name, progress);
-                }}
-                onDoubleClick={(task) => {
-                     console.log('Show details for', task.name);
-                }}
-                onExpanderClick={handleExpanderClick}
-                listCellWidth="265px"
-                columnWidth={viewMode === ViewMode.Month ? 300 : 60}
-                rowHeight={40}
-                headerHeight={50}
-                /* Custom List */
-                TaskListHeader={TaskListHeader}
-                TaskListTable={TaskListTable}
-                /* Critical Path highlighting via styling logic can be handled in useMemo content by setting styles */
-            />
+          <div>
+            {/* Frozen Header Part */}
+            <div ref={headerRef} style={{ overflowX: 'hidden', overflowY: 'hidden', height: 50, borderBottom: '1px solid #dfe1e6' }}>
+                <Gantt
+                    tasks={ganttTasks}
+                    viewMode={viewMode}
+                    listCellWidth="770px"
+                    columnWidth={viewMode === ViewMode.Month ? 300 : 60}
+                    rowHeight={40}
+                    headerHeight={50}
+                    TaskListHeader={TaskListHeader}
+                    TaskListTable={() => <div />}
+                />
+            </div>
+            
+            {/* Scrollable Body Part */}
+            <div 
+                ref={bodyRef}
+                onScrollCapture={handleBodyScroll}
+                style={{ overflowX: 'auto', maxHeight: '650px', overflowY: 'auto' }}
+            >
+                <Gantt
+                    tasks={ganttTasks}
+                    viewMode={viewMode}
+                    onDateChange={(task: Task) => {
+                        console.log('Task date changed:', task.name, task.start, task.end);
+                        // Here we would call a server action to update dates
+                    }}
+                    onProgressChange={(task, progress) => {
+                         console.log('Task progress changed:', task.name, progress);
+                    }}
+                    onDoubleClick={(task) => {
+                         console.log('Show details for', task.name);
+                    }}
+                    onExpanderClick={handleExpanderClick}
+                    listCellWidth="770px"
+                    columnWidth={viewMode === ViewMode.Month ? 300 : 60}
+                    rowHeight={40}
+                    headerHeight={0}
+                    TaskListHeader={() => <div />}
+                    TaskListTable={TaskListTable}
+                />
+            </div>
           </div>
       ) : (
           <div style={{ padding: 40, textAlign: 'center', color: '#6B778C' }}>
