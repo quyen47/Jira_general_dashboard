@@ -10,6 +10,8 @@ import { getProjectTotalHours } from '@/actions/timesheet';
 import RecentActivity from '@/components/RecentActivity';
 import ReportGenerator from '@/components/ReportGenerator';
 import { updateDomainTimezone } from '@/actions/timezone';
+import WBSGanttChart from '@/components/WBSGanttChart';
+import { getProjectSchedule } from '@/actions/gantt';
 
 
 export default async function ProjectPage({
@@ -28,6 +30,7 @@ export default async function ProjectPage({
   let project;
   let issues = [];
   let epicList = [];
+  let schedule = [];
   let stats = {
     total: 0,
     byStatus: {} as Record<string, number>,
@@ -45,7 +48,7 @@ export default async function ProjectPage({
     const epicJql = `project = "${key}" AND issuetype = "Epic" AND statusCategory != Done`;
 
     // Parallel Fetch - all using base JQL (unfiltered)
-    const [search, count, epicsSearch, _totalHours] = await Promise.all([
+    const [search, count, epicsSearch, _totalHours, _schedule] = await Promise.all([
       jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
         jql: `${baseJql} ORDER BY created DESC`,
         maxResults: 100,
@@ -59,10 +62,12 @@ export default async function ProjectPage({
         maxResults: 50,
         fields: ['summary', 'status', 'created', 'duedate']
       }),
-      getProjectTotalHours(key)
+      getProjectTotalHours(key),
+      getProjectSchedule(key)
     ]);
     
     totalHours = _totalHours;
+    schedule = _schedule;
 
     if (project && project.self) {
         baseUrl = project.self.split('/rest/')[0];
@@ -171,6 +176,10 @@ export default async function ProjectPage({
       
       <div style={{ marginBottom: '2rem' }}>
           <ProjectOverview projectKey={key} offshoreSpentHours={totalHours} epics={epicList} />
+      </div>
+
+      <div style={{ marginBottom: '2rem' }}>
+          <WBSGanttChart tasks={schedule} baseUrl={baseUrl} />
       </div>
 
       <Timesheet projectKey={key} initialOpen={true} />
