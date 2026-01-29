@@ -17,15 +17,65 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
   const [showCriticalPath, setShowCriticalPath] = useState(false);
   const [showBaselines, setShowBaselines] = useState(false);
   const [isOpen, setIsOpen] = useState(true);
+  const [collapsedTasks, setCollapsedTasks] = useState<string[]>([]);
 
   // Transform data for the library
   // Library Task interface:
   // id: string; name: string; type: "task" | "milestone" | "project"; progress: number; styles?: ...; isDisabled?: boolean; 
   // start: Date; end: Date; dependencies?: string[]; project?: string; hideChildren?: boolean; displayOrder?: number;
   const ganttTasks: Task[] = useMemo(() => {
-    return initialTasks.map(t => {
+    // 1. Sort Hierarchy (DFS to ensure children are below parents)
+    const idSet = new Set(initialTasks.map(t => t.id));
+    const roots: GanttTaskData[] = [];
+    const childrenMap = new Map<string, GanttTaskData[]>();
+    
+    initialTasks.forEach(t => {
+      // If task has a parent and that parent is also in the list, it's a child node
+      if (t.project && idSet.has(t.project)) {
+         if (!childrenMap.has(t.project)) childrenMap.set(t.project, []);
+         childrenMap.get(t.project)!.push(t);
+      } else {
+         // Otherwise treat as root (Epic or independent task)
+         roots.push(t);
+      }
+    });
+
+    const sortedTasks: GanttTaskData[] = [];
+    const traverse = (nodes: GanttTaskData[]) => {
+       nodes.forEach(node => {
+          sortedTasks.push(node);
+          // If this node has children, append them immediately after
+          if (childrenMap.has(node.id)) {
+             traverse(childrenMap.get(node.id)!);
+          }
+       });
+    }
+    traverse(roots);
+
+    // 2. Helper map for hierarchy lookup (visibilty check)
+    const taskMap = new Map(initialTasks.map(t => [t.id, t]));
+    
+    // Recursive check if a task is hidden due to an ancestor being collapsed
+    const isSectionHidden = (taskId: string): boolean => {
+       const task = taskMap.get(taskId);
+       if (!task || !task.project) return false;
+       const parentId = task.project;
+       
+       // If parent is explicitly collapsed, this task is hidden
+       if (collapsedTasks.includes(parentId)) return true;
+       
+       // Otherwise check if parent itself is hidden
+       return isSectionHidden(parentId);
+    };
+
+    // 3. Map to Gantt Task format
+    const mappedTasks = sortedTasks.map(t => {
       const isBug = t.issueType?.name === 'Bug';
       const isDone = t.status === 'Done';
+      
+      // If this task is hidden (because an ancestor is collapsed), 
+      // we must also hide its children so they don't dangle.
+      const taskIsHidden = isSectionHidden(t.id);
       
       return {
         id: t.id,
@@ -44,10 +94,21 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
         },
         // Store original formatting/data in hidden props or use a wrapper map if needed
         // but component allows custom columns so we can access original data via ID lookup if needed
-        hideChildren: false
+        hideChildren: collapsedTasks.includes(t.id) || taskIsHidden
       };
     });
-  }, [initialTasks, showCriticalPath]);
+
+    return mappedTasks.filter(t => !isSectionHidden(t.id));
+  }, [initialTasks, showCriticalPath, collapsedTasks]);
+
+  const handleExpanderClick = (task: Task) => {
+    setCollapsedTasks(prev => {
+      if (prev.includes(task.id)) {
+        return prev.filter(id => id !== task.id);
+      }
+      return [...prev, task.id];
+    });
+  };
 
   /* 
    * Custom list cell renderer to show Jira details
@@ -63,33 +124,32 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
           <div style={{ height: headerHeight, display: 'flex', fontWeight: 'bold', borderBottom: '1px solid #dfe1e6', alignItems: 'center', background: '#f4f5f7' }}>
               <div style={{ minWidth: 30, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>#</div>
               <div style={{ minWidth: 25, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>T</div>
-              <div style={{ minWidth: 70, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Key</div>
-              <div style={{ minWidth: 100, padding: '0 8px', borderRight: '1px solid #dfe1e6', flex: 1 }}>Summary</div>
-              <div style={{ minWidth: 60, padding: '0 4px' }}>Status</div>
+              <div style={{ minWidth: 65, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Key</div>
+              <div style={{ minWidth: 85, padding: '0 8px', borderRight: '1px solid #dfe1e6', flex: 1 }}>Summary</div>
+              <div style={{ minWidth: 55, padding: '0 4px' }}>Status</div>
           </div>
       );
   };
 
-  const TaskListTable = ({ rowHeight, tasks }: { rowHeight: number, tasks: Task[] }) => {
+  const TaskListTable = ({ rowHeight, tasks, onExpanderClick }: { rowHeight: number, tasks: Task[], onExpanderClick: (task: Task) => void }) => {
       return (
           <div style={{ fontFamily: 'inherit' }}>
               {tasks.map((t: Task, i: number) => {
                   const original = initialTasks.find(it => it.id === t.id);
                   const issueUrl = baseUrl && original?.jiraKey ? `${baseUrl}/browse/${original.jiraKey}` : '#';
                   
-                  // Hierarchy Indentation Logic
-                  // Level 0: Epic / Project (no parent) -> 0px
-                  // Level 1: Story / Task (parent is Epic) -> 16px
-                  // Level 2: Subtask (parent is Story) -> 32px
-                  let indent = 0;
+                  // Hierarchy
+                  const hasChildren = initialTasks.some(it => it.project === t.id);
+                  let indentLevel = 0;
                   if (t.project) {
-                      indent = 16;
+                      indentLevel = 1;
                       const parent = initialTasks.find(it => it.id === t.project);
                       if (parent && parent.project) {
-                          indent = 32;
+                          indentLevel = 2;
                       }
                   }
-                  
+                  const paddingLeft = indentLevel * 14;
+
                   return (
                       <div key={t.id} style={{ height: rowHeight, display: 'flex', alignItems: 'center', borderBottom: '1px solid #f4f5f7', background: 'white' }}>
                           <div style={{ minWidth: 30, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center', color: '#6B778C', fontSize: '0.8rem' }}>
@@ -102,14 +162,30 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
                                   <span style={{ fontSize: '0.6rem' }}>{t.type.substring(0,1)}</span>
                               )}
                           </div>
-                          <div style={{ minWidth: 70, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>
+                          <div style={{ minWidth: 65, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>
                               <a href={issueUrl} target="_blank" style={{ color: '#0052CC', textDecoration: 'none', fontSize: '0.85rem' }}>{original?.jiraKey}</a>
                           </div>
-                          <div style={{ minWidth: 100, padding: `0 8px 0 ${8 + indent}px`, borderRight: '1px solid #dfe1e6', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <div style={{ minWidth: 85, padding: `0 8px`, borderRight: '1px solid #dfe1e6', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
+                              <div style={{ width: paddingLeft, flexShrink: 0, textAlign: 'right', color: '#ccc', marginRight: 4, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                  {indentLevel > 0 && <span style={{ borderLeft: '1px solid #ccc', borderBottom: '1px solid #ccc', width: 8, height: 8, display: 'inline-block', marginBottom: 4 }}></span>}
+                              </div>
+                              
+                              {hasChildren && (
+                                  <div 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleExpanderClick(t);
+                                      }}
+                                      style={{ cursor: 'pointer', marginRight: 4, width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #dfe1e6', borderRadius: 2, background: '#f4f5f7', fontSize: 10, flexShrink: 0 }}
+                                  >
+                                      {t.hideChildren ? '+' : '-'}
+                                  </div>
+                              )}
+                              
                               <a 
                                 href={issueUrl}
                                 target="_blank"
-                                style={{ color: '#172B4D', fontSize: '0.9rem', textDecoration: 'none', cursor: 'pointer' }}
+                                style={{ color: '#172B4D', fontSize: '0.85rem', textDecoration: 'none', cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis' }}
                                 title={t.name}
                                 onMouseOver={(e) => e.currentTarget.style.textDecoration = 'underline'}
                                 onMouseOut={(e) => e.currentTarget.style.textDecoration = 'none'}
@@ -117,7 +193,7 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
                                 {t.name}
                               </a>
                           </div>
-                          <div style={{ minWidth: 60, padding: '0 4px', textAlign: 'center' }}>
+                          <div style={{ minWidth: 55, padding: '0 4px', textAlign: 'center' }}>
                               <span style={{ 
                                   background: original?.status === 'Done' ? '#E3FCEF' : '#DFE1E6', 
                                   color: original?.status === 'Done' ? '#006644' : '#42526E',
@@ -213,7 +289,8 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl }: WBSGantt
                 onDoubleClick={(task) => {
                      console.log('Show details for', task.name);
                 }}
-                listCellWidth="300px"
+                onExpanderClick={handleExpanderClick}
+                listCellWidth="265px"
                 columnWidth={viewMode === ViewMode.Month ? 300 : 60}
                 rowHeight={40}
                 headerHeight={50}
