@@ -21,10 +21,7 @@ export default async function ProjectPage({
     searchParams: Promise<{ filterJql?: string }>;
   }) {
   const { key } = await params;
-  // Note: filterJql is now only used by FilterManager for its insights
-  // The main page content always shows ALL project data
   
-  // Base scope is the project - used for all main content
   const baseJql = `project = "${key}"`;
   
   let project;
@@ -44,10 +41,8 @@ export default async function ProjectPage({
     const jira = await getJiraClient();
     project = await jira.projects.getProject(key);
     
-    // Epic JQL - always uses base project scope (no filter)
     const epicJql = `project = "${key}" AND issuetype = "Epic" AND statusCategory != Done`;
 
-    // Parallel Fetch - all using base JQL (unfiltered)
     const [search, count, epicsSearch, _totalHours, _schedule] = await Promise.all([
       jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
         jql: `${baseJql} ORDER BY created DESC`,
@@ -72,10 +67,9 @@ export default async function ProjectPage({
     if (project && project.self) {
         baseUrl = project.self.split('/rest/')[0];
         
-        // Ensure domain config exists for settings page
         try {
           const domain = new URL(baseUrl).hostname;
-          await updateDomainTimezone(domain, 'Asia/Bangkok'); // Creates if doesn't exist
+          await updateDomainTimezone(domain, 'Asia/Bangkok');
         } catch (error) {
           console.error('Error ensuring domain config:', error);
         }
@@ -85,7 +79,6 @@ export default async function ProjectPage({
     stats.total = (count as any).total || 0;
     const epics = epicsSearch.issues || [];
 
-    // Fetch children for calculations (if any epics found) - unfiltered
     let epicStats: Record<string, { total: number, todo: number, inprogress: number, done: number }> = {};
     if (epics.length > 0) {
         const epicKeys = epics.map((e: any) => e.key);
@@ -111,7 +104,6 @@ export default async function ProjectPage({
                 } else if (category === 'indeterminate') {
                     epicStats[parentKey].inprogress++;
                 } else {
-                    // 'new' or undefined
                     epicStats[parentKey].todo++;
                 }
             }
@@ -132,14 +124,41 @@ export default async function ProjectPage({
 
   } catch (e) {
     console.error(e);
-    // If project not found or error
     return (
         <div className="dashboard-container">
-            <header className="header">
-                <h1>Error</h1>
-            </header>
-            <p>Could not load project {key}. Please try again.</p>
-            <Link href="/" className="back-link">← Back to Dashboard</Link>
+            <div style={{ 
+              background: 'white', 
+              borderRadius: '14px', 
+              padding: '48px', 
+              textAlign: 'center',
+              border: '1px solid #E2E8F0',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+            }}>
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 16 }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
+                </svg>
+                <h1 style={{ fontSize: '1.25rem', color: '#0F172A', marginBottom: 8 }}>Error Loading Project</h1>
+                <p style={{ color: '#64748B', marginBottom: 20 }}>Could not load project {key}. Please try again.</p>
+                <Link href="/" style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '10px 20px',
+                  background: 'linear-gradient(135deg, #1E40AF, #3B82F6)',
+                  color: 'white',
+                  borderRadius: '10px',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  textDecoration: 'none',
+                }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  Back to Dashboard
+                </Link>
+            </div>
         </div>
     )
   }
@@ -152,19 +171,46 @@ export default async function ProjectPage({
     <div className="dashboard-container">
       <header className="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <Link href="/" className="back-link">← Back</Link>
-          <div className="project-title-row" style={{ marginTop: '1rem', display: 'flex', alignItems: 'center' }}>
+          <Link href="/" className="back-link" style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+            color: '#3B82F6',
+            fontSize: '0.85rem',
+            fontWeight: 500,
+            textDecoration: 'none',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+            Back to Dashboard
+          </Link>
+          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center' }}>
             {project.avatarUrls?.['48x48'] && (
                 <img 
                     src={project.avatarUrls['48x48']} 
                     alt={project.name} 
-                    style={{ width: 32, height: 32, borderRadius: 4, marginRight: 10 }}
+                    style={{ width: 36, height: 36, borderRadius: 8, marginRight: 14, border: '1px solid #E2E8F0' }}
                 />
             )}
-            <h1 style={{ margin: 0 }}>{project.name} <span style={{fontSize: '0.6em', color: '#666', verticalAlign: 'middle'}}>({project.key})</span></h1>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 700, letterSpacing: '-0.02em', color: '#0F172A' }}>
+                {project.name}
+              </h1>
+              <span style={{ 
+                fontSize: '0.8rem', 
+                color: '#94A3B8', 
+                fontWeight: 500,
+                fontFamily: 'var(--font-geist-mono, monospace)',
+                marginTop: 2,
+                display: 'inline-block',
+              }}>
+                {project.key}
+              </span>
+            </div>
           </div>
           
-          <div style={{ marginTop: '1.5rem' }}>
+          <div style={{ marginTop: '20px' }}>
               <StakeholderManager projectKey={key} />
           </div>
         </div>
@@ -174,11 +220,11 @@ export default async function ProjectPage({
         </div>
       </header>
       
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '24px' }}>
           <ProjectOverview projectKey={key} offshoreSpentHours={totalHours} epics={epicList} />
       </div>
 
-      <div style={{ marginBottom: '2rem' }}>
+      <div style={{ marginBottom: '24px' }}>
           <WBSGanttChart tasks={schedule} baseUrl={baseUrl} projectKey={key} />
       </div>
 
@@ -189,8 +235,6 @@ export default async function ProjectPage({
       <ReportGenerator projectKey={key} baseUrl={baseUrl} />
 
       <RecentActivity projectKey={key} baseUrl={baseUrl} />
-
-
 
     </div>
   );

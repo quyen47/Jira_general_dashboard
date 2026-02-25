@@ -185,8 +185,8 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
           }}>
               <div style={{ minWidth: 40, width: 40, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>#</div>
               <div style={{ minWidth: 30, width: 30, padding: '0 4px', borderRight: '1px solid #dfe1e6', textAlign: 'center' }}>T</div>
-              <div style={{ minWidth: 130, width: 130, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Key</div>
-              <div style={{ minWidth: 500, width: 500, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Summary</div>
+              <div style={{ minWidth: 120, width: 120, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Key</div>
+              <div style={{ minWidth: 400, width: 400, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>Summary</div>
               <div style={{ minWidth: 100, width: 100, padding: '0 4px', textAlign: 'center' }}>Status</div>
           </div>
       );
@@ -240,10 +240,10 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
                                   <span style={{ fontSize: '0.6rem' }}>{t.type.substring(0,1)}</span>
                               )}
                           </div>
-                          <div style={{ minWidth: 130, width: 130, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>
+                          <div style={{ minWidth: 120, width: 130, padding: '0 8px', borderRight: '1px solid #dfe1e6' }}>
                               <a href={issueUrl} target="_blank" style={{ color: '#0052CC', textDecoration: 'none', fontSize: '0.85rem' }}>{original?.jiraKey}</a>
                           </div>
-                          <div style={{ minWidth: 500, width: 500, padding: `0 8px`, borderRight: '1px solid #dfe1e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
+                          <div style={{ minWidth: 400, width: 400, padding: `0 8px`, borderRight: '1px solid #dfe1e6', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center' }}>
                               <div style={{ width: paddingLeft, flexShrink: 0, textAlign: 'right', color: '#ccc', marginRight: 4, display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                                   {indentLevel > 0 && <span style={{ borderLeft: '1px solid #ccc', borderBottom: '1px solid #ccc', width: 8, height: 8, display: 'inline-block', marginBottom: 4 }}></span>}
                               </div>

@@ -112,11 +112,11 @@ export async function generateWorklogReport(
 
   // Build issue map for parent/child relationships
   const issueMap = new Map<string, any>();
-  issues.forEach(issue => issueMap.set(issue.key, issue));
+  issues.forEach((issue: any) => issueMap.set(issue.key, issue));
 
   // Collect all parent keys that are referenced but not in our results
   const missingParentKeys = new Set<string>();
-  issues.forEach(issue => {
+  issues.forEach((issue: any) => {
     if (issue.fields.parent && !issueMap.has(issue.fields.parent.key)) {
       missingParentKeys.add(issue.fields.parent.key);
     }
@@ -146,7 +146,7 @@ export async function generateWorklogReport(
       console.log('Fetched parent issues:', parentSearchResult.issues?.length || 0);
       
       // Log detailed info about fetched parents
-      parentSearchResult.issues?.forEach(parentIssue => {
+      parentSearchResult.issues?.forEach((parentIssue: any) => {
         console.log(`Parent ${parentIssue.key}:`, {
           summary: parentIssue.fields.summary,
           issueType: parentIssue.fields.issuetype?.name,
@@ -159,7 +159,7 @@ export async function generateWorklogReport(
       });
       
       // Add parent issues to the map and create a ReportIssue representation
-      parentSearchResult.issues?.forEach(parentIssue => {
+      parentSearchResult.issues?.forEach((parentIssue: any) => {
         issueMap.set(parentIssue.key, parentIssue);
         
         // Also create a basic ReportIssue for the parent (without worklogs)
@@ -183,7 +183,7 @@ export async function generateWorklogReport(
       
       // Collect parent metadata for frontend use
       const parentMetadata: Record<string, ReportIssue> = {};
-      parentSearchResult.issues?.forEach(parentIssue => {
+      parentSearchResult.issues?.forEach((parentIssue: any) => {
         const reportVersion = (issueMap as any).get(`${parentIssue.key}_REPORT`);
         if (reportVersion) {
           parentMetadata[parentIssue.key] = reportVersion;
@@ -327,19 +327,19 @@ export async function generateWorklogReport(
     );
 
   const activeIssues = issueHours.size;
-  const completedIssues = issues.filter(i => 
+  const completedIssues = issues.filter((i: any) => 
     i.fields.status?.statusCategory?.key === 'done' && issueHours.has(i.key)
   ).length;
 
   const now = new Date();
-  const onTimeIssues = issues.filter(i => {
+  const onTimeIssues = issues.filter((i: any) => {
     if (!i.fields.duedate || !issueHours.has(i.key)) return false;
     const dueDate = new Date(i.fields.duedate);
     const isDone = i.fields.status?.statusCategory?.key === 'done';
     return isDone && dueDate >= now;
   }).length;
 
-  const overdueIssues = issues.filter(i => {
+  const overdueIssues = issues.filter((i: any) => {
     if (!i.fields.duedate || !issueHours.has(i.key)) return false;
     const dueDate = new Date(i.fields.duedate);
     const isDone = i.fields.status?.statusCategory?.key === 'done';
