@@ -4,6 +4,7 @@ import { useState, useEffect, useTransition } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getJiraFilters, getFilterInsights, JiraFilter, FilterIssue, StatusPriorityBreakdown } from '@/actions/filters';
 import { getFilters, saveFilters as apiSaveFilters } from '@/lib/api';
+import DependencyGraph from './DependencyGraph';
 
 interface LocalFilter {
   id: string;
@@ -42,6 +43,7 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
   const [isAdding, setIsAdding] = useState(false);
   const [newFilterName, setNewFilterName] = useState('');
   const [newFilterJql, setNewFilterJql] = useState('');
+  const [viewMode, setViewMode] = useState<'table' | 'graph'>('table');
   
   // Insights state
   const [insights, setInsights] = useState<{ total: number; byStatus: any[]; byPriority: any[]; byStatusPriority: StatusPriorityBreakdown[]; issues: FilterIssue[] } | null>(null);
@@ -403,16 +405,56 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
             {/* Issue List Table - filtered by selected status */}
             {insights && insights.issues && insights.issues.length > 0 && (
               <div style={{ marginTop: '20px' }}>
-                <h5 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', color: '#5e6c84' }}>
-                  Issues 
-                  {selectedStatus ? (
-                    <span> - {selectedStatus} ({insights.issues.filter(i => i.status === selectedStatus).length})</span>
-                  ) : (
-                    <span> ({insights.issues.length} of {insights.total})</span>
-                  )}
-                </h5>
-                <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #dfe1e6', borderRadius: 8 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <h5 style={{ margin: 0, fontSize: '0.9rem', color: '#5e6c84' }}>
+                    Issues 
+                    {selectedStatus ? (
+                      <span> - {selectedStatus} ({insights.issues.filter(i => i.status === selectedStatus).length})</span>
+                    ) : (
+                      <span> ({insights.issues.length} of {insights.total})</span>
+                    )}
+                  </h5>
+                  
+                  {/* View Toggle */}
+                  <div style={{ display: 'flex', background: '#f4f5f7', borderRadius: '6px', padding: '2px' }}>
+                    <button
+                      onClick={() => setViewMode('table')}
+                      style={{
+                        padding: '4px 12px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        background: viewMode === 'table' ? 'white' : 'transparent',
+                        color: viewMode === 'table' ? '#0052cc' : '#5e6c84',
+                        boxShadow: viewMode === 'table' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: viewMode === 'table' ? 600 : 500
+                      }}
+                    >
+                      Table View
+                    </button>
+                    <button
+                      onClick={() => setViewMode('graph')}
+                      style={{
+                        padding: '4px 12px',
+                        border: 'none',
+                        borderRadius: '4px',
+                        background: viewMode === 'graph' ? 'white' : 'transparent',
+                        color: viewMode === 'graph' ? '#0052cc' : '#5e6c84',
+                        boxShadow: viewMode === 'graph' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: viewMode === 'graph' ? 600 : 500
+                      }}
+                    >
+                      Graph View
+                    </button>
+                  </div>
+                </div>
+
+                {viewMode === 'table' ? (
+                  <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #dfe1e6', borderRadius: 8 }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                     <thead style={{ background: '#f4f5f7', position: 'sticky', top: 0 }}>
                       <tr>
                         <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #dfe1e6' }}>Key</th>
@@ -482,7 +524,13 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
                       ))}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+                ) : (
+                  <DependencyGraph 
+                    issues={insights.issues.filter(i => !selectedStatus || i.status === selectedStatus)} 
+                    baseUrl={baseUrl}
+                  />
+                )}
               </div>
             )}
           </div>

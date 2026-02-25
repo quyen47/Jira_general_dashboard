@@ -59,6 +59,7 @@ export interface FilterIssue {
   assignee?: string;
   assigneeAvatar?: string;
   updated: string;
+  dependencies?: { targetKey: string; type: string; direction: 'inward' | 'outward' }[];
 }
 
 export interface StatusPriorityBreakdown {
@@ -85,7 +86,7 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
     const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
       jql: `${effectiveJql} ORDER BY updated DESC`,
       maxResults: 100,
-      fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated']
+      fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated', 'issuelinks', 'subtasks']
     });
     
     const rawIssues = search.issues || [];
@@ -107,6 +108,25 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
       }
       statusPriorityMap[status].priorities[priority] = (statusPriorityMap[status].priorities[priority] || 0) + 1;
       
+      const dependencies: FilterIssue['dependencies'] = [];
+      
+      if (issue.fields.issuelinks) {
+        issue.fields.issuelinks.forEach((link: any) => {
+          if (link.outwardIssue) {
+             dependencies.push({ targetKey: link.outwardIssue.key, type: link.type.name || 'links', direction: 'outward' });
+          }
+          if (link.inwardIssue) {
+             dependencies.push({ targetKey: link.inwardIssue.key, type: link.type.name || 'links', direction: 'inward' });
+          }
+        });
+      }
+
+      if (issue.fields.subtasks) {
+        issue.fields.subtasks.forEach((subtask: any) => {
+           dependencies.push({ targetKey: subtask.key, type: 'subtask', direction: 'outward' });
+        });
+      }
+      
       return {
         key: issue.key,
         summary: issue.fields.summary,
@@ -118,7 +138,8 @@ export async function getFilterInsights(jql: string, projectKey: string, jiraBas
         priorityIcon: issue.fields.priority?.iconUrl,
         assignee: issue.fields.assignee?.displayName,
         assigneeAvatar: issue.fields.assignee?.avatarUrls?.['24x24'],
-        updated: issue.fields.updated
+        updated: issue.fields.updated,
+        dependencies
       };
     });
     
@@ -156,23 +177,45 @@ export async function loadMoreFilterIssues(
     const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
       jql: `${effectiveJql} ORDER BY updated DESC`,
       maxResults,
-      fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated']
+      fields: ['summary', 'issuetype', 'status', 'priority', 'assignee', 'updated', 'issuelinks', 'subtasks']
     });
     
     const rawIssues = search.issues || [];
-    return rawIssues.map((issue: any) => ({
-      key: issue.key,
-      summary: issue.fields.summary,
-      issueType: issue.fields.issuetype?.name || 'Unknown',
-      issueTypeIcon: issue.fields.issuetype?.iconUrl,
-      status: issue.fields.status?.name || 'Unknown',
-      statusColor: issue.fields.status?.statusCategory?.colorName || 'default',
-      priority: issue.fields.priority?.name || 'None',
-      priorityIcon: issue.fields.priority?.iconUrl,
-      assignee: issue.fields.assignee?.displayName,
-      assigneeAvatar: issue.fields.assignee?.avatarUrls?.['24x24'],
-      updated: issue.fields.updated
-    }));
+    return rawIssues.map((issue: any) => {
+      const dependencies: FilterIssue['dependencies'] = [];
+      
+      if (issue.fields.issuelinks) {
+        issue.fields.issuelinks.forEach((link: any) => {
+          if (link.outwardIssue) {
+             dependencies.push({ targetKey: link.outwardIssue.key, type: link.type.name || 'links', direction: 'outward' });
+          }
+          if (link.inwardIssue) {
+             dependencies.push({ targetKey: link.inwardIssue.key, type: link.type.name || 'links', direction: 'inward' });
+          }
+        });
+      }
+
+      if (issue.fields.subtasks) {
+        issue.fields.subtasks.forEach((subtask: any) => {
+           dependencies.push({ targetKey: subtask.key, type: 'subtask', direction: 'outward' });
+        });
+      }
+
+      return {
+        key: issue.key,
+        summary: issue.fields.summary,
+        issueType: issue.fields.issuetype?.name || 'Unknown',
+        issueTypeIcon: issue.fields.issuetype?.iconUrl,
+        status: issue.fields.status?.name || 'Unknown',
+        statusColor: issue.fields.status?.statusCategory?.colorName || 'default',
+        priority: issue.fields.priority?.name || 'None',
+        priorityIcon: issue.fields.priority?.iconUrl,
+        assignee: issue.fields.assignee?.displayName,
+        assigneeAvatar: issue.fields.assignee?.avatarUrls?.['24x24'],
+        updated: issue.fields.updated,
+        dependencies
+      };
+    });
   } catch (e) {
     console.error('Failed to load more issues:', e);
     return [];
