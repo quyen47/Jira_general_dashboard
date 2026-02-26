@@ -326,7 +326,7 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
   const todayStr = new Date().toISOString().split('T')[0];
 
   return (
-    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px' }}>
       {/* Header */}
       <div 
         onClick={() => setIsOpen(!isOpen)}
@@ -349,9 +349,9 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
       </div>
 
       {isOpen && (
-        <div style={{ padding: '20px' }}>
+        <div style={{ padding: '12px' }}>
           {/* Controls */}
-          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'space-between', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* PTO Legend */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -455,7 +455,7 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
           </div>
 
           {/* Grid */}
-          <div style={{ overflowX: 'auto', marginLeft: '-20px', marginRight: '-20px', paddingLeft: '20px', paddingRight: '20px' }}>
+          <div style={{ overflowX: 'auto', marginLeft: '-12px', marginRight: '-12px', paddingLeft: '12px', paddingRight: '12px' }}>
             <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '0.9rem' }}>
               <thead>
                 <tr>
@@ -540,7 +540,7 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={dates.length + 2} style={{ padding: '20px', textAlign: 'center', color: '#666' }}>
+                    <td colSpan={dates.length + 2} style={{ padding: '12px', textAlign: 'center', color: '#666' }}>
                       {isPending ? 'Loading worklogs...' : 'No worklogs found for this period'}
                     </td>
                   </tr>
@@ -892,7 +892,7 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
           {selectedCell && (
             <div style={{ 
               marginTop: '20px', 
-              padding: '20px', 
+              padding: '12px', 
               background: '#f4f5f7', 
               borderRadius: 8,
               border: '1px solid #dfe1e6',
@@ -989,16 +989,16 @@ export default function Timesheet({ projectKey, initialOpen = false }: { project
             }}>
               <div style={{
                 background: 'white',
-                padding: '24px',
+                padding: '16px',
                 borderRadius: '8px',
                 width: '400px',
                 maxWidth: '90%',
                 maxHeight: '90vh',
                 overflowY: 'auto'
               }}>
-                <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#172b4d' }}>Export Worklogs</h3>
+                <h3 style={{ marginTop: 0, marginBottom: '10px', color: '#172b4d' }}>Export Worklogs</h3>
                 
-                <div style={{ marginBottom: '20px' }}>
+                <div style={{ marginBottom: '10px' }}>
                   <h4 style={{ fontSize: '0.9rem', marginBottom: '10px' }}>Select Fields</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '8px' }}>
                     {Object.keys(exportFields).map(key => (

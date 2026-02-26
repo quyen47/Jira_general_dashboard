@@ -209,7 +209,7 @@ export default function DependencyGraph({ issues, baseUrl }: DependencyGraphProp
   }, [issues]);
 
   if (issues.length === 0) {
-    return <div style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No issues found.</div>;
+    return <div style={{ padding: '12px', textAlign: 'center', color: '#666' }}>No issues found.</div>;
   }
 
   return (

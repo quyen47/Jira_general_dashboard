@@ -252,9 +252,9 @@ export default function AllocationListModal({
               </div>
 
               {loading && allocations.length === 0 ? (
-                <div style={{ textAlign: 'center', color: '#6B778C', padding: '20px' }}>Loading...</div>
+                <div style={{ textAlign: 'center', color: '#6B778C', padding: '12px' }}>Loading...</div>
               ) : allocations.length === 0 ? (
-                <div style={{ margin: '0 24px', textAlign: 'center', color: '#6B778C', padding: '20px', background: '#FAFBFC', borderRadius: '3px' }}>
+                <div style={{ margin: '0 24px', textAlign: 'center', color: '#6B778C', padding: '12px', background: '#FAFBFC', borderRadius: '3px' }}>
                   No allocations found.
                 </div>
               ) : (
@@ -363,12 +363,12 @@ export default function AllocationListModal({
           {/* Add/Edit Form */}
           {isAdding && (
             <div style={{ padding: '24px', overflowY: 'auto' }}>
-              <div style={{ background: '#F4F5F7', padding: '20px', borderRadius: '3px' }}>
-                <h3 style={{ marginTop: 0, fontSize: '16px', color: '#172B4D', marginBottom: '20px' }}>
+              <div style={{ background: '#F4F5F7', padding: '12px', borderRadius: '3px' }}>
+                <h3 style={{ marginTop: 0, fontSize: '16px', color: '#172B4D', marginBottom: '10px' }}>
                   {editingId ? 'Edit Allocation' : 'New Allocation'}
                 </h3>
                 <form onSubmit={handleSubmit}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#6B778C', marginBottom: '6px' }}>
                         Start Date
@@ -409,7 +409,7 @@ export default function AllocationListModal({
                     </div>
                   </div>
 
-                  <div style={{ marginBottom: '20px' }}>
+                  <div style={{ marginBottom: '12px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#6B778C', marginBottom: '6px' }}>
                       Allocation Percentage (%)
                     </label>

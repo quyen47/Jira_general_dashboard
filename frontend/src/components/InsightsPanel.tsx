@@ -52,7 +52,7 @@ export default function InsightsPanel({ recommendations = [], headerAction }: In
       {/* Header */}
       <div style={{
         background: '#F8FAFC',
-        padding: '14px 20px',
+        padding: '10px 14px',
         borderBottom: '1px solid #E2E8F0',
         fontWeight: 600,
         fontSize: '0.85rem',
@@ -83,14 +83,14 @@ export default function InsightsPanel({ recommendations = [], headerAction }: In
       </div>
 
       {/* Content */}
-      <div style={{ padding: '20px' }}>
+      <div style={{ padding: '12px' }}>
         
         {isEmpty && (
           <div style={{
             background: 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)',
             border: '1.5px solid #86EFAC',
             borderRadius: '12px',
-            padding: '20px',
+            padding: '12px',
             textAlign: 'center',
             color: '#15803D',
             display: 'flex',
@@ -109,7 +109,7 @@ export default function InsightsPanel({ recommendations = [], headerAction }: In
         )}
 
         {!isEmpty && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {/* Action Recommendations */}
             {actionRecs.map((rec, idx) => (
               <div
@@ -119,11 +119,11 @@ export default function InsightsPanel({ recommendations = [], headerAction }: In
                   border: '1px solid #FECACA',
                   borderLeft: '4px solid #EF4444',
                   borderRadius: '10px',
-                  padding: '14px 16px',
+                  padding: '8px 12px',
                   animation: `fadeIn 0.3s ease-out ${idx * 0.05}s both`,
                 }}
               >
-                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#B91C1C', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#B91C1C', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <ActionIcon /> {rec.message}
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#64748B', lineHeight: 1.5 }}>
@@ -141,11 +141,11 @@ export default function InsightsPanel({ recommendations = [], headerAction }: In
                   border: '1px solid #FDE68A',
                   borderLeft: '4px solid #F59E0B',
                   borderRadius: '10px',
-                  padding: '14px 16px',
+                  padding: '8px 12px',
                   animation: `fadeIn 0.3s ease-out ${(actionRecs.length + idx) * 0.05}s both`,
                 }}
               >
-                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#A16207', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#A16207', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <OptimizationIcon /> {rec.message}
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#64748B', lineHeight: 1.5 }}>
@@ -163,11 +163,11 @@ export default function InsightsPanel({ recommendations = [], headerAction }: In
                   border: '1px solid #BFDBFE',
                   borderLeft: '4px solid #3B82F6',
                   borderRadius: '10px',
-                  padding: '14px 16px',
+                  padding: '8px 12px',
                   animation: `fadeIn 0.3s ease-out ${(actionRecs.length + optimizationRecs.length + idx) * 0.05}s both`,
                 }}
               >
-                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1D4ED8', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1D4ED8', marginBottom: '3px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <OpportunityIcon /> {rec.message}
                 </div>
                 <div style={{ fontSize: '0.78rem', color: '#64748B', lineHeight: 1.5 }}>

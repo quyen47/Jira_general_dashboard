@@ -47,7 +47,7 @@ export default function TeamContributionChart({ issues, onMemberClick }: TeamCon
   const maxHours = Math.max(...members.map(m => m.hours), 1);
 
   return (
-    <div style={{ padding: '20px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
+    <div style={{ padding: '12px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
       <h4 style={{ margin: '0 0 20px 0', fontSize: '0.95rem', color: '#172b4d' }}>
         👥 Team Contribution (Top 10)
       </h4>

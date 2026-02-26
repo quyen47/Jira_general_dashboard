@@ -44,12 +44,12 @@ export default function IssueTypeBreakdown({ issues, onTypeClick }: IssueTypeBre
   };
 
   return (
-    <div style={{ padding: '20px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
+    <div style={{ padding: '12px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
       <h4 style={{ margin: '0 0 20px 0', fontSize: '0.95rem', color: '#172b4d' }}>
         📋 Work by Issue Type
       </h4>
 
-      <div style={{ display: 'flex', gap: '20px', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
         {/* Pie chart */}
         <div style={{ position: 'relative', width: '150px', height: '150px' }}>
           <svg viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>

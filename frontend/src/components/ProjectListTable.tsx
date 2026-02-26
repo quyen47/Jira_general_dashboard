@@ -276,7 +276,7 @@ export default function ProjectTable({ projects, pagination }: ProjectTableProps
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        marginBottom: '20px', 
+        marginBottom: '10px', 
         flexWrap: 'wrap', 
         gap: '12px' 
       }}>

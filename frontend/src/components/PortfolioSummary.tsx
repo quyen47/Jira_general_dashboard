@@ -139,7 +139,7 @@ export default function PortfolioSummary() {
         background: 'white',
         borderRadius: '14px',
         border: '1px solid #E2E8F0',
-        marginBottom: '24px',
+        marginBottom: '12px',
       }}>
         <div style={{
           width: 32,
@@ -165,7 +165,7 @@ export default function PortfolioSummary() {
       <div style={{ 
         background: '#F8FAFC', 
         borderRadius: '12px', 
-        padding: '20px', 
+        padding: '12px', 
         display: 'flex', 
         flexDirection: 'column', 
         alignItems: 'center',
@@ -315,7 +315,7 @@ export default function PortfolioSummary() {
         )}
         
         {/* Charts Row */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
            {renderDonut('All Projects by Phase', data.phases, COLORS_PHASE)}
            {renderDonut('All Projects by Health', data.health, COLORS_HEALTH, true)}
            {renderDonut('All Projects by Contract Value', { 

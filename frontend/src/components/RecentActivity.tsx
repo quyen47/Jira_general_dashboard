@@ -138,7 +138,7 @@ export default function RecentActivity({
     const isForcedMode = !!(forcedUsername || forcedIssueKey);
 
     return (
-        <div style={{ background: 'white', borderRadius: isForcedMode ? 0 : 8, boxShadow: isForcedMode ? 'none' : '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: isForcedMode ? 0 : '2rem' }}>
+        <div style={{ background: 'white', borderRadius: isForcedMode ? 0 : 8, boxShadow: isForcedMode ? 'none' : '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: isForcedMode ? 0 : '12px' }}>
             {!isForcedMode && (
             <div 
                 onClick={() => setIsOpen(!isOpen)}
@@ -160,11 +160,11 @@ export default function RecentActivity({
             )}
 
             {isOpen && (
-                <div style={{ padding: '16px' }}>
+                <div style={{ padding: '12px' }}>
                     
                     {/* User Filter Row - Hide if Forced Mode */}
                     {!isForcedMode && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 15, marginBottom: 20 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                             {/* Text Search */}
                             <form onSubmit={handleFilterSubmit} style={{ display: 'flex', gap: 10, flex: '0 0 250px' }}>
                                 <input 
@@ -235,7 +235,7 @@ export default function RecentActivity({
                                 const dayActivities = groupedByDay[day];
                                 
                                 return (
-                                    <div key={day} style={{ marginTop: 20 }}>
+                                    <div key={day} style={{ marginTop: 12 }}>
                                     <h4 style={{ 
                                         fontSize: '0.75rem', 
                                         textTransform: 'uppercase', 

@@ -260,7 +260,7 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
   }
 
   return (
-    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px' }}>
       {/* Header */}
       <div 
         onClick={() => setIsOpen(!isOpen)}
@@ -281,10 +281,10 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
       </div>
 
       {isOpen && (
-        <div style={{ padding: '20px' }}>
+        <div style={{ padding: '12px' }}>
           {/* Date Range Selector */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '15px', flexWrap: 'wrap' }}>
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap' }}>
               <label style={{ fontWeight: 600, color: '#172b4d' }}>Time Range:</label>
               
               {(['thisWeek', 'lastWeek', 'thisMonth', 'lastMonth'] as const).map(p => (
@@ -307,7 +307,7 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.85rem', color: '#5e6c84', marginBottom: '4px' }}>Start Date</label>
                 <input
@@ -359,7 +359,7 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
           {!isLoading && report && (
             <>
               {/* Summary Metrics */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px', marginBottom: '25px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '10px', marginBottom: '15px' }}>
                 <MetricCard label="Total Hours" value={`${report.summary.totalHours}h`} color="#0052cc" />
                 <MetricCard label="Active Issues" value={report.summary.activeIssues} color="#00875a" />
                 <MetricCard label="Completed" value={report.summary.completedIssues} color="#36b37e" />
@@ -370,9 +370,9 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
 
               {/* Forecast Panel */}
               {report.forecast.projectedCompletion && (
-                <div style={{ background: '#f4f5f7', padding: '15px', borderRadius: 8, marginBottom: '20px', borderLeft: '4px solid #0052cc' }}>
-                  <h4 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', color: '#172b4d' }}>📈 Forecast</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', fontSize: '0.85rem' }}>
+                <div style={{ background: '#f4f5f7', padding: '10px', borderRadius: 8, marginBottom: '12px', borderLeft: '4px solid #0052cc' }}>
+                  <h4 style={{ margin: '0 0 8px 0', fontSize: '0.9rem', color: '#172b4d' }}>📈 Forecast</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '0.85rem' }}>
                     <div>
                       <div style={{ color: '#5e6c84', marginBottom: '4px' }}>Projected Completion</div>
                       <div style={{ fontWeight: 600, color: '#172b4d' }}>{new Date(report.forecast.projectedCompletion).toLocaleDateString()}</div>
@@ -394,7 +394,7 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
               )}
 
               {/* Tab Navigation */}
-              <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '2px solid #dfe1e6' }}>
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', borderBottom: '2px solid #dfe1e6' }}>
                 <button
                   onClick={() => setActiveTab('overview')}
                   style={{
@@ -433,7 +433,7 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
               {activeTab === 'overview' && (
                 <>
                   {/* Filter Section */}
-                  <div style={{ marginBottom: '20px', background: '#f4f5f7', padding: '15px', borderRadius: 8 }}>
+                  <div style={{ marginBottom: '10px', background: '#f4f5f7', padding: '10px', borderRadius: 8 }}>
                     <h5 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#172b4d' }}>🔍 Filter Issues</h5>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div>
@@ -600,9 +600,9 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
 
               {/* Charts Tab */}
               {activeTab === 'charts' && (
-                <div style={{ display: 'grid', gap: '20px' }}>
+                <div style={{ display: 'grid', gap: '12px' }}>
                   <TimeDistributionChart dailyHours={report.trends.dailyHours} />
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <TeamContributionChart 
                       issues={report.issues} 
                       onMemberClick={(accountId, name) => {
@@ -636,9 +636,9 @@ export default function ReportGenerator({ projectKey, baseUrl = '' }: ReportGene
 
 function MetricCard({ label, value, color }: { label: string; value: string | number; color: string }) {
   return (
-    <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: 8, border: '1px solid #dfe1e6' }}>
-      <div style={{ fontSize: '0.75rem', color: '#5e6c84', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
-      <div style={{ fontSize: '1.8rem', fontWeight: 700, color }}>{value}</div>
+    <div style={{ background: '#f9f9f9', padding: '10px', borderRadius: 8, border: '1px solid #dfe1e6' }}>
+      <div style={{ fontSize: '0.75rem', color: '#5e6c84', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</div>
+      <div style={{ fontSize: '1.5rem', fontWeight: 700, color }}>{value}</div>
     </div>
   );
 }

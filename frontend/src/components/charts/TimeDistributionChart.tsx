@@ -12,7 +12,7 @@ export default function TimeDistributionChart({ dailyHours, height = 200 }: Time
   
   if (dailyHours.length === 0) {
     return (
-      <div style={{ padding: '20px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
+      <div style={{ padding: '12px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
         <h4 style={{ margin: '0 0 20px 0', fontSize: '0.95rem', color: '#172b4d' }}>
           📈 Time Distribution
         </h4>
@@ -27,7 +27,7 @@ export default function TimeDistributionChart({ dailyHours, height = 200 }: Time
   const chartWidth = 100; // percentage
 
   return (
-    <div style={{ padding: '20px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
+    <div style={{ padding: '12px', background: 'white', borderRadius: 8, border: '1px solid #dfe1e6' }}>
       <h4 style={{ margin: '0 0 20px 0', fontSize: '0.95rem', color: '#172b4d' }}>
         📈 Time Distribution
       </h4>
@@ -95,7 +95,7 @@ export default function TimeDistributionChart({ dailyHours, height = 200 }: Time
       </div>
 
       {/* Legend */}
-      <div style={{ marginTop: '15px', display: 'flex', gap: '20px', fontSize: '0.75rem', color: '#5e6c84', justifyContent: 'center' }}>
+      <div style={{ marginTop: '8px', display: 'flex', gap: '12px', fontSize: '0.75rem', color: '#5e6c84', justifyContent: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <div style={{ width: 12, height: 12, background: '#0052cc', borderRadius: 2 }} />
           <span>Weekday</span>

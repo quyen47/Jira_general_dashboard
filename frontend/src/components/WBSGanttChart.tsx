@@ -320,7 +320,7 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
   };
 
   return (
-    <div className="custom-gantt-wrapper" style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+    <div className="custom-gantt-wrapper" style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px' }}>
       <style dangerouslySetInnerHTML={{__html: `
         .custom-gantt-wrapper .gantt .bar { filter: none !important; }
         .custom-gantt-wrapper .gantt .bar-progress { filter: none !important; }
@@ -357,7 +357,7 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
       <div style={{ border: '1px solid #dfe1e6', borderTop: 'none', background: 'white', overflow: 'hidden' }}>
       
       {/* Controls Toolbar */}
-      <div style={{ padding: '12px 16px', borderBottom: '1px solid #dfe1e6', display: 'flex', gap: 16, alignItems: 'center', background: '#FAFBFC' }}>
+      <div style={{ padding: '8px 12px', borderBottom: '1px solid #dfe1e6', display: 'flex', gap: 12, alignItems: 'center', background: '#FAFBFC', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 4, background: '#EBECF0', padding: 2, borderRadius: 3 }}>
              <button 
                 onClick={() => setViewMode(ViewMode.Day)}

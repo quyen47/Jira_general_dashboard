@@ -69,7 +69,7 @@ export default function EpicTimeline({ epics }: { epics: EpicData[] }) {
   };
 
   return (
-    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px' }}>
       {/* Collapsible Header */}
       <div 
         onClick={() => setIsOpen(!isOpen)}

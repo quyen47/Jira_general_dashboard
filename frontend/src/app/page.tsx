@@ -29,7 +29,7 @@ export default async function Home({
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        marginBottom: '24px',
+        marginBottom: '12px',
       }}>
         <div>
           <h1 style={{ 

@@ -131,7 +131,7 @@ export default function MetricCard({
         background: config.bg,
         border: `1.5px solid ${config.border}`,
         borderRadius: '14px',
-        padding: '20px',
+        padding: '12px',
         cursor: onClick ? 'pointer' : 'default',
         transition: 'all 200ms cubic-bezier(0.4, 0, 0.2, 1)',
         position: 'relative',
@@ -186,7 +186,7 @@ export default function MetricCard({
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        marginBottom: '14px' 
+        marginBottom: '8px' 
       }}>
         <div style={{ 
           fontSize: '0.75rem', 
@@ -208,9 +208,9 @@ export default function MetricCard({
           )}
         </div>
         <div style={{
-          width: 36,
-          height: 36,
-          borderRadius: '10px',
+          width: 30,
+          height: 30,
+          borderRadius: '8px',
           background: config.iconBg,
           display: 'flex',
           alignItems: 'center',
@@ -222,7 +222,7 @@ export default function MetricCard({
 
       {/* Main Value */}
       <div style={{ 
-        fontSize: '2rem', 
+        fontSize: '1.6rem', 
         fontWeight: 700, 
         color: config.text, 
         marginBottom: '4px',
@@ -240,7 +240,7 @@ export default function MetricCard({
           display: 'flex', 
           alignItems: 'center', 
           gap: '5px',
-          marginTop: '6px',
+          marginTop: '3px',
         }}>
           {trend && <TrendIcon trend={trend} />}
           {subValue}

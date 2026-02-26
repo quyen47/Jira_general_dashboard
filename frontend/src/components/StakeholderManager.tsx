@@ -150,7 +150,7 @@ export default function StakeholderManager({ projectKey }: { projectKey: string 
   };
 
   return (
-    <div style={{ marginBottom: '2rem' }}>
+    <div style={{ marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
             <h3 style={{ margin: 0, color: '#172b4d', fontSize: '1.1rem' }}>Stakeholders</h3>
             {!isAdding && (

@@ -156,7 +156,7 @@ export default function GlobalSettings() {
         <div style={{
           padding: '14px 18px',
           borderRadius: '12px',
-          marginBottom: '20px',
+          marginBottom: '10px',
           background: message.type === 'success' ? 'linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%)' : 'linear-gradient(135deg, #FEF2F2 0%, #FEE2E2 100%)',
           color: message.type === 'success' ? '#15803D' : '#B91C1C',
           border: `1.5px solid ${message.type === 'success' ? '#86EFAC' : '#FECACA'}`,
@@ -239,7 +239,7 @@ export default function GlobalSettings() {
             </p>
           </div>
         ) : (
-          <div style={{ padding: '20px' }}>
+          <div style={{ padding: '12px' }}>
             {/* Header Row */}
             <div style={{
               display: 'grid',
@@ -267,7 +267,7 @@ export default function GlobalSettings() {
                   display: 'grid',
                   gridTemplateColumns: '1fr 1fr auto',
                   gap: '12px',
-                  padding: '16px',
+                  padding: '12px',
                   borderBottom: '1px solid #F1F5F9',
                   alignItems: 'center',
                   transition: 'background 150ms ease',
@@ -388,8 +388,8 @@ export default function GlobalSettings() {
 
       {/* Info Card */}
       <div style={{
-        marginTop: '24px',
-        padding: '20px',
+        marginTop: '12px',
+        padding: '12px',
         background: 'linear-gradient(135deg, #EFF6FF 0%, #DBEAFE 100%)',
         borderRadius: '14px',
         border: '1.5px solid #BFDBFE',

@@ -82,7 +82,7 @@ export default function AIRecommendations({ projectKey }: AIRecommendationsProps
           }}>
             {/* Header */}
             <div style={{
-              padding: '20px',
+              padding: '12px',
               borderBottom: '1px solid #dfe1e6',
               display: 'flex',
               justifyContent: 'space-between',
@@ -103,8 +103,8 @@ export default function AIRecommendations({ projectKey }: AIRecommendationsProps
             <div style={{ padding: '24px', overflowY: 'auto', flex: 1, minHeight: '300px' }}>
               {!content && !isLoading && !error && (
                 <div style={{ textAlign: 'center', padding: '40px', color: '#5e6c84' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '20px' }}>🤖</div>
-                  <p style={{ fontSize: '1.1rem', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '10px' }}>🤖</div>
+                  <p style={{ fontSize: '1.1rem', marginBottom: '10px' }}>
                     Generate actionable insights for <strong>{projectKey}</strong> based on current metrics.
                   </p>
                   <button
@@ -142,7 +142,7 @@ export default function AIRecommendations({ projectKey }: AIRecommendationsProps
               )}
 
               {error && (
-                <div style={{ padding: '20px', background: '#FFFAE6', border: '1px solid #FFC400', borderRadius: '4px', color: '#172b4d' }}>
+                <div style={{ padding: '12px', background: '#FFFAE6', border: '1px solid #FFC400', borderRadius: '4px', color: '#172b4d' }}>
                   <strong>⚠️ Error:</strong> {error}
                   <div style={{ marginTop: '10px' }}>
                     <button onClick={handleGenerate} style={{ cursor: 'pointer', color: '#0052cc', background: 'none', border: 'none', padding: 0, textDecoration: 'underline' }}>

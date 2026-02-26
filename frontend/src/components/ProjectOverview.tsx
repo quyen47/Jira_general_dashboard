@@ -273,7 +273,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
       }
 
       return (
-        <div style={{ marginTop: 25, marginBottom: 10 }}>
+        <div style={{ marginTop: 16, marginBottom: 6 }}>
             <div style={{ position: 'relative' }}>
                 {/* Today Label */}
                  <div style={{ 
@@ -395,7 +395,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
 
 
   return (
-    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px' }}>
         {/* Header */}
         <div 
             onClick={() => setIsOpen(!isOpen)}
@@ -424,7 +424,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
         </div>
 
         {isOpen && (
-            <div style={{ padding: '20px' }}>
+            <div style={{ padding: '12px' }}>
                 
                 {/* Insights Dashboard Section */}
                 {(() => {
@@ -457,7 +457,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                   return (
                     <>
                       {/* Metric Cards */}
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
                         <MetricCard
                           title="Work Progress"
                           status={scheduleStatus}
@@ -510,7 +510,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                       </div>
 
                       {/* Insights Panel */}
-                      <div style={{ marginBottom: '30px' }}>
+                      <div style={{ marginBottom: '10px' }}>
                         <InsightsPanel 
                             recommendations={recommendations} 
                             headerAction={<AIRecommendations projectKey={projectKey} />}
@@ -520,15 +520,15 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                   );
                 })()}
 
-                <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />
+                <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '10px 0' }} />
                 
                 {/* 1. General & Health/Progress Split */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginBottom: '30px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
                     
                     {/* General Section */}
-                    <div style={{ background: '#f9f9f9', padding: 15, borderRadius: 8 }}>
-                       <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8 }}>1. General</h3>
-                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                    <div style={{ background: '#f9f9f9', padding: 10, borderRadius: 8 }}>
+                       <h3 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 6 }}>1. General</h3>
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
 
                            <div>
                                <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Complexity</div>
@@ -573,8 +573,8 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                     </div>
 
                     {/* Health and Progress Section */}
-                    <div style={{ background: '#f9f9f9', padding: 15, borderRadius: 8 }}>
-                       <h3 style={{ margin: '0 0 15px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ background: '#f9f9f9', padding: 10, borderRadius: 8 }}>
+                       <h3 style={{ margin: '0 0 8px 0', fontSize: '0.95rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                            <span>2. Health and Progress</span>
                            <div style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 8 }}>
 
@@ -627,7 +627,7 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                        </div>
 
 
-                       <div style={{ marginBottom: 15 }}>
+                       <div style={{ marginBottom: 8 }}>
                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#5e6c84', marginBottom: 4 }}>Timeline Progress</div>
                            {renderTimelineBar()}
                        </div>
@@ -690,14 +690,14 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
 
                 </div>
 
-                <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '20px 0' }} />
+                <hr style={{ border: 'none', borderTop: '1px solid #dfe1e6', margin: '10px 0' }} />
 
                 {/* 3. Budget & Hours */}
-                <div style={{ marginBottom: '30px' }}>
-                     <h3 style={{ textAlign: 'center', fontSize: '1.2rem', color: '#172b4d', marginBottom: '20px' }}>Overall Budget & Hours (Onshore & Offshore)</h3>
+                <div style={{ marginBottom: '12px' }}>
+                     <h3 style={{ textAlign: 'center', fontSize: '1.05rem', color: '#172b4d', marginBottom: '10px' }}>Overall Budget & Hours (Onshore & Offshore)</h3>
                      
                      {/* Summary Grid */}
-                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '20px', textAlign: 'center' }}>
+                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '10px', textAlign: 'center' }}>
                         
                         {/* Contract Value */}
                         <div style={{ background: '#f4f5f7', padding: 15, borderRadius: 8 }}>
@@ -755,8 +755,8 @@ export default function ProjectOverview({ projectKey, offshoreSpentHours = 0, ep
                      </div>
 
                      {/* Burn Down Chart */}
-                     <div style={{ marginTop: '30px', background: '#f4f5f7', padding: 20, borderRadius: 8 }}>
-                         <h4 style={{ margin: '0 0 20px 0', fontSize: '1rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 8 }}>
+                     <div style={{ marginTop: '12px', background: '#f4f5f7', padding: 12, borderRadius: 8 }}>
+                         <h4 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', color: '#172b4d', borderBottom: '2px solid #dfe1e6', paddingBottom: 6 }}>
                            Offshore Hours Burn Down
                          </h4>
                          <BurnDownChart

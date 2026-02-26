@@ -143,7 +143,7 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
   } : null;
 
   return (
-    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px' }}>
       {/* Header Bar - Like ProjectOverview */}
       <div 
         onClick={() => setIsOpen(!isOpen)}
@@ -177,9 +177,9 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
       </div>
 
       {isOpen && (
-        <div style={{ padding: '20px' }}>
+        <div style={{ padding: '12px' }}>
           {/* Filter Chips */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
             {isLoadingFilters && <span style={{ color: '#666', fontSize: '0.85rem' }}>Loading Jira filters...</span>}
 
             {allFilters.map(filter => (
@@ -233,7 +233,7 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
           {/* Active Filter Info (Description & JQL) - Only show when a filter is selected */}
           {displayInfo && currentFilterJql && (displayInfo.description || displayInfo.jql) && (
             <div style={{ 
-              marginBottom: '20px', 
+              marginBottom: '10px', 
               padding: '12px 16px', 
               background: '#ebf2ff', 
               borderRadius: 6, 
@@ -258,8 +258,8 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
           {/* Add Form */}
           {isAdding && (
             <div style={{ 
-              marginBottom: '20px',
-              padding: '15px', 
+              marginBottom: '10px',
+              padding: '10px', 
               background: '#f4f5f7', 
               borderRadius: 8,
               display: 'flex',
@@ -314,9 +314,9 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
             </h4>
             
             {isLoadingInsights ? (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>Loading insights...</div>
+              <div style={{ textAlign: 'center', padding: '12px', color: '#666' }}>Loading insights...</div>
             ) : insights && insights.byStatusPriority && insights.byStatusPriority.length > 0 ? (
-              <div style={{ background: '#f9f9f9', padding: '15px', borderRadius: 8 }}>
+              <div style={{ background: '#f9f9f9', padding: '10px', borderRadius: 8 }}>
                 <h5 style={{ margin: '0 0 15px 0', fontSize: '0.9rem', color: '#5e6c84' }}>
                   By Status (click to filter issues)
                   {selectedStatus && (
@@ -399,7 +399,7 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
                 </div>
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '20px', color: '#666' }}>No data to display</div>
+              <div style={{ textAlign: 'center', padding: '12px', color: '#666' }}>No data to display</div>
             )}
 
             {/* Issue List Table - filtered by selected status */}

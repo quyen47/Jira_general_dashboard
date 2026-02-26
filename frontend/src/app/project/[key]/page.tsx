@@ -185,7 +185,7 @@ export default async function ProjectPage({
             </svg>
             Back to Dashboard
           </Link>
-          <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center' }}>
+          <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center' }}>
             {project.avatarUrls?.['48x48'] && (
                 <img 
                     src={project.avatarUrls['48x48']} 
@@ -210,7 +210,7 @@ export default async function ProjectPage({
             </div>
           </div>
           
-          <div style={{ marginTop: '20px' }}>
+          <div style={{ marginTop: '10px' }}>
               <StakeholderManager projectKey={key} />
           </div>
         </div>
@@ -220,11 +220,11 @@ export default async function ProjectPage({
         </div>
       </header>
       
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '12px' }}>
           <ProjectOverview projectKey={key} offshoreSpentHours={totalHours} epics={epicList} />
       </div>
 
-      <div style={{ marginBottom: '24px' }}>
+      <div style={{ marginBottom: '12px' }}>
           <WBSGanttChart tasks={schedule} baseUrl={baseUrl} projectKey={key} />
       </div>
 
