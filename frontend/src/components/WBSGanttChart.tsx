@@ -103,7 +103,7 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
       return {
         id: t.id,
         name: t.name,
-        type: t.type,
+        type: 'task' as const, // Force to 'task' so they render as clean rectangles instead of brackets
         progress: t.progress,
         start: new Date(t.start), // Ensure Date object
         end: new Date(t.end),
@@ -112,8 +112,9 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
         // Custom styles based on status/type
         styles: { 
           progressColor: isDone ? '#36B37E' : (isBug ? '#FF5630' : '#0052CC'),
-          progressSelectedColor: isDone ? '#00875A' : (isBug ? '#DE350B' : '#0052CC'),
-          backgroundColor: t.type === 'project' ? '#6B778C' : (showCriticalPath ? '#FFAB00' : (isBug ? '#FFEBE6' : '#DEEBFF')),
+          progressSelectedColor: isDone ? '#00875A' : (isBug ? '#DE350B' : '#0747A6'),
+          backgroundColor: isDone ? '#E3FCEF' : (isBug ? '#FFEBE6' : '#DEEBFF'),
+          backgroundSelectedColor: isDone ? '#C3E8D7' : (isBug ? '#FFD6CE' : '#B3D4FF'),
         },
         // Store original formatting/data in hidden props or use a wrapper map if needed
         // but component allows custom columns so we can access original data via ID lookup if needed
@@ -289,8 +290,50 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
       );
   };
 
+  const CustomTooltip = ({ task }: any) => {
+    return (
+      <div style={{
+        background: 'white',
+        padding: '12px',
+        borderRadius: '8px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+        border: '1px solid #dfe1e6',
+        fontSize: '0.85rem',
+        color: '#172b4d',
+        fontFamily: 'inherit',
+        minWidth: '220px',
+        zIndex: 1000
+      }}>
+        <div style={{ fontWeight: 600, marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid #eee' }}>
+          {task.name}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '6px' }}>
+          <span style={{ color: '#5e6c84' }}>Start:</span>
+          <span style={{ fontWeight: 500 }}>{task.start.toLocaleDateString()}</span>
+          <span style={{ color: '#5e6c84' }}>End:</span>
+          <span style={{ fontWeight: 500 }}>{task.end.toLocaleDateString()}</span>
+          <span style={{ color: '#5e6c84' }}>Progress:</span>
+          <span style={{ fontWeight: 500 }}>{task.progress}%</span>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+    <div className="custom-gantt-wrapper" style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '2rem' }}>
+      <style dangerouslySetInnerHTML={{__html: `
+        .custom-gantt-wrapper .gantt .bar { filter: none !important; }
+        .custom-gantt-wrapper .gantt .bar-progress { filter: none !important; }
+        .custom-gantt-wrapper .gantt .bar-background { filter: none !important; }
+        .custom-gantt-wrapper text { 
+            font-size: 13px !important; 
+            font-weight: 600 !important; 
+            font-family: inherit !important; 
+            fill: #091E42 !important; 
+        }
+        .custom-gantt-wrapper .gantt polygon { filter: none !important; }
+        .custom-gantt-wrapper rect[filter] { filter: none !important; }
+      `}} />
        {/* Header */}
         <div 
             onClick={() => setIsOpen(!isOpen)}
@@ -342,6 +385,24 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
             Baseline
         </label>
 
+        <div style={{ width: 1, height: 20, background: '#dfe1e6', margin: '0 8px' }} />
+
+        {/* Legend */}
+        <div style={{ display: 'flex', gap: 12, fontSize: 13, alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+               <div style={{ width: 12, height: 12, borderRadius: 2, background: '#0052CC' }} />
+               <span style={{ color: '#5e6c84', fontWeight: 500 }}>In Progress</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+               <div style={{ width: 12, height: 12, borderRadius: 2, background: '#36B37E' }} />
+               <span style={{ color: '#5e6c84', fontWeight: 500 }}>Done</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+               <div style={{ width: 12, height: 12, borderRadius: 2, background: '#FF5630' }} />
+               <span style={{ color: '#5e6c84', fontWeight: 500 }}>Bug</span>
+            </div>
+        </div>
+
          {/* Spacer */}
          <div style={{ flex: 1 }} />
          
@@ -364,6 +425,12 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
                     columnWidth={viewMode === ViewMode.Month ? 300 : 60}
                     rowHeight={40}
                     headerHeight={50}
+                    barCornerRadius={4}
+                    fontFamily="inherit"
+                    fontSize="13px"
+                    arrowColor="#8993a4"
+                    arrowIndent={15}
+                    TooltipContent={CustomTooltip}
                     TaskListHeader={TaskListHeader}
                     TaskListTable={() => <div />}
                 />
@@ -393,6 +460,12 @@ export default function WBSGanttChart({ tasks: initialTasks, baseUrl, projectKey
                     columnWidth={viewMode === ViewMode.Month ? 300 : 60}
                     rowHeight={40}
                     headerHeight={0}
+                    barCornerRadius={4}
+                    fontFamily="inherit"
+                    fontSize="13px"
+                    arrowColor="#8993a4"
+                    arrowIndent={15}
+                    TooltipContent={CustomTooltip}
                     TaskListHeader={() => <div />}
                     TaskListTable={TaskListTable}
                 />
