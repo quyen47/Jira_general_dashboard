@@ -20,15 +20,26 @@ export interface ActivityItem {
     fromValue?: string;
     toValue?: string;
     commentBody?: string;
+    // New fields for dashboard analysis
+    status?: string;
+    assignee?: string;
+    dueDate?: string;
+    startDate?: string;
   };
 }
 
-export async function getProjectRecentActivity(projectKey: string, username?: string, issueKey?: string): Promise<ActivityItem[]> {
+export async function getProjectRecentActivity(projectKey: string, username?: string, issueKey?: string, date?: string): Promise<ActivityItem[]> {
   const jira = await getJiraClient();
   
-  // Look back 14 days for activity
-  // If username provided, filter for it
-  let jql = `project = "${projectKey}" AND updated >= -14d`;
+  // Look back 14 days for activity by default, or target specific date
+  let jql = `project = "${projectKey}"`;
+  
+  if (date) {
+      // Filter for the entire day
+      jql += ` AND updated >= "${date}" AND updated <= "${date} 23:59"`;
+  } else {
+      jql += ` AND updated >= -14d`;
+  }
   
   if (issueKey && issueKey.trim()) {
       jql += ` AND key = "${issueKey}"`;
@@ -43,18 +54,15 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
 
   jql += ` ORDER BY updated DESC`;
 
-  console.log(`[RecentActivity] Fetching for project: ${projectKey}, User: ${username || 'All'}`);
+  console.log(`[RecentActivity] Fetching for project: ${projectKey}, User: ${username || 'All'}, Date: ${date || '14d'}`);
   console.log(`[RecentActivity] JQL: ${jql}`);
 
   let issues: any[] = [];
   try {
-      // Note: EnhancedSearchPost (POST /search/jql) often does not support 'expand' for changelog in the same way standard search does, 
-      // or gives 400 if used. Standard search gave 410. 
-      // We will rely on fields to get comments and creation info.
       const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
         jql,
-        maxResults: 20, 
-        fields: ['summary', 'comment', 'creator', 'created', 'updated']
+        maxResults: 50, // Increased limit
+        fields: ['summary', 'comment', 'creator', 'created', 'updated', 'status', 'assignee', 'duedate', 'customfield_10015']
       });
       console.log(`[RecentActivity] Jira Response: Found ${search.issues?.length || 0} issues`);
       issues = search.issues || [];
@@ -102,14 +110,19 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
       let hasActivity = false;
 
       // 1. Issue Creation (if within window)
-      // Check if created date is recent (simple check vs now is fine, or relying on query is mostly ok but query is 'updated')
-      // Let's just include it if it's in the list
       const createdTime = new Date(issue.fields.created).getTime();
-      const cutoff = Date.now() - (14 * 24 * 60 * 60 * 1000);
+      let cutoff = Date.now() - (14 * 24 * 60 * 60 * 1000);
+      let endCutoff = Date.now() + (24 * 60 * 60 * 1000); // Future buffer
+
+      if (date) {
+          const d = new Date(date);
+          cutoff = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+          endCutoff = cutoff + (24 * 60 * 60 * 1000);
+      }
       
       const creatorName = issue.fields.creator?.displayName || 'Unknown';
       // Filter by username if provided
-      if (createdTime >= cutoff && (!username || creatorName === username)) {
+      if (createdTime >= cutoff && createdTime <= endCutoff && (!username || creatorName === username)) {
           hasActivity = true;
           activities.push({
               id: `${issue.id}-create`,
@@ -122,7 +135,11 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
               issue: issueData,
               details: {
                   field: 'Issue',
-                  toValue: 'Created'
+                  toValue: 'Created',
+                  status: issue.fields.status?.name,
+                  assignee: issue.fields.assignee?.displayName,
+                  dueDate: issue.fields.duedate,
+                  startDate: issue.fields.customfield_10015
               }
           });
       }
@@ -134,7 +151,7 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
               const authorName = comment.author?.displayName || 'Unknown';
               
               // Filter by username if provided
-              if (cTime >= cutoff && (!username || authorName === username)) {
+              if (cTime >= cutoff && cTime <= endCutoff && (!username || authorName === username)) {
                   hasActivity = true;
                   
                   let bodyText = '';
@@ -164,7 +181,11 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
                       timestamp: comment.created,
                       issue: issueData,
                       details: {
-                          commentBody: bodyText
+                          commentBody: bodyText,
+                          status: issue.fields.status?.name,
+                          assignee: issue.fields.assignee?.displayName,
+                          dueDate: issue.fields.duedate,
+                          startDate: issue.fields.customfield_10015
                       }
                   });
               }
@@ -178,7 +199,7 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
               const hTime = new Date(history.created).getTime();
               const authorName = history.author?.displayName || 'Unknown';
 
-              if (hTime >= cutoff && (!username || authorName === username)) {
+              if (hTime >= cutoff && hTime <= endCutoff && (!username || authorName === username)) {
                    history.items.forEach((item: any, idx: number) => {
                       // We primarily care about Status, Priority, Assignee. 
                       // Maybe filter to reduce noise?
@@ -209,5 +230,5 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
   activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
   // Limit total items returned to frontend
-  return activities.slice(0, 50);
+  return activities.slice(0, 100);
 }

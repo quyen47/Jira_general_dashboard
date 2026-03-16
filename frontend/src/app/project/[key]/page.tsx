@@ -12,6 +12,7 @@ import ReportGenerator from '@/components/ReportGenerator';
 import { updateDomainTimezone } from '@/actions/timezone';
 import WBSGanttChart from '@/components/WBSGanttChart';
 import { getProjectSchedule } from '@/actions/gantt';
+import DailyCheckpoint from '@/components/DailyCheckpoint';
 
 
 export default async function ProjectPage({
@@ -220,6 +221,10 @@ export default async function ProjectPage({
         </div>
       </header>
       
+      <div style={{ marginBottom: '12px' }}>
+          <DailyCheckpoint projectKey={key} baseUrl={baseUrl} />
+      </div>
+
       <div style={{ marginBottom: '12px' }}>
           <ProjectOverview projectKey={key} offshoreSpentHours={totalHours} epics={epicList} />
       </div>
