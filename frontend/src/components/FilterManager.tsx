@@ -114,16 +114,16 @@ export default function FilterManager({ projectKey, baseUrl = '' }: { projectKey
 
   const applyFilter = (jql: string) => {
     if (jql === currentFilterJql) {
-      router.push(`/project/${projectKey}`);
+      router.push(`/project/${projectKey}`, { scroll: false });
     } else {
       const params = new URLSearchParams();
       params.set('filterJql', jql);
-      router.push(`/project/${projectKey}?${params.toString()}`);
+      router.push(`/project/${projectKey}?${params.toString()}`, { scroll: false });
     }
   };
 
   const clearFilter = () => {
-    router.push(`/project/${projectKey}`);
+    router.push(`/project/${projectKey}`, { scroll: false });
   };
 
   // Combine local and Jira filters
