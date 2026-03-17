@@ -8,33 +8,30 @@ interface DailyCheckpointProps {
     baseUrl?: string;
 }
 
-interface ScheduleRisk {
+interface PriorityIssue {
     issueKey: string;
     summary: string;
-    type: 'overdue' | 'delayed-start';
-    days: number;
+    status?: string;
+    assignee?: string;
+    flags: {
+        type: 'blocker' | 'overdue' | 'delayed-start' | 'new' | 'help';
+        label: string;
+        color: string;
+        bgColor: string;
+        detail?: string;
+    }[];
 }
 
 interface UserWork {
     name: string;
     avatarUrl?: string;
-    tickets: Set<string>;
-    needsHelp: boolean;
+    statusGroups: Record<string, Set<string>>;
+    hasRisk: boolean;
 }
 
 interface CheckpointSummary {
     totalActivities: number;
-    commentsCount: number;
-    updatesCount: number;
-    creationsCount: number;
-    actionItems: {
-        issueKey: string;
-        summary: string;
-        reason: string;
-        type: 'blocker' | 'update' | 'new';
-        assignee?: string;
-    }[];
-    scheduleRisks: ScheduleRisk[];
+    priorityIssues: PriorityIssue[];
     teamWork: Record<string, UserWork>;
 }
 
@@ -42,6 +39,7 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
     const [isOpen, setIsOpen] = useState(true);
     const [summary, setSummary] = useState<CheckpointSummary | null>(null);
     const [loading, setLoading] = useState(true);
+    const [handledItems, setHandledItems] = useState<Set<string>>(new Set());
     
     const todayStr = useMemo(() => {
         const now = new Date();
@@ -53,6 +51,32 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
 
     const [selectedDate, setSelectedDate] = useState(todayStr);
 
+    const storageKey = `checkpoint-handled-${projectKey}-${selectedDate}`;
+
+    useEffect(() => {
+        const stored = localStorage.getItem(storageKey);
+        if (stored) {
+            try {
+                setHandledItems(new Set(JSON.parse(stored)));
+            } catch (e) {
+                setHandledItems(new Set());
+            }
+        } else {
+            setHandledItems(new Set());
+        }
+    }, [storageKey]);
+
+    const toggleHandled = (issueKey: string) => {
+        const next = new Set(handledItems);
+        if (next.has(issueKey)) {
+            next.delete(issueKey);
+        } else {
+            next.add(issueKey);
+        }
+        setHandledItems(next);
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(next)));
+    };
+
     useEffect(() => {
         const loadCheckpoint = async () => {
             setLoading(true);
@@ -61,107 +85,98 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
                 
                 const checkpoint: CheckpointSummary = {
                     totalActivities: dayActivities.length,
-                    commentsCount: dayActivities.filter(a => a.type === 'comment').length,
-                    updatesCount: dayActivities.filter(a => a.type === 'history').length,
-                    creationsCount: dayActivities.filter(a => a.type === 'create').length,
-                    actionItems: [],
-                    scheduleRisks: [],
+                    priorityIssues: [],
                     teamWork: {}
                 };
 
-                const seenIssues = new Set<string>();
-                const riskIssues = new Set<string>();
+                const issueMap = new Map<string, PriorityIssue>();
                 const targetTimestamp = new Date(selectedDate).getTime();
 
                 dayActivities.forEach(activity => {
                     const issueKey = activity.issue.key;
                     const details = activity.details;
-
-                    // 1. Team Work Summary
                     const userName = activity.user.name;
+
+                    if (!issueMap.has(issueKey)) {
+                        issueMap.set(issueKey, {
+                            issueKey,
+                            summary: activity.issue.summary,
+                            status: details?.status,
+                            assignee: details?.assignee,
+                            flags: []
+                        });
+                    }
+                    const pIssue = issueMap.get(issueKey)!;
+
+                    if (activity.type === 'comment') {
+                        const body = details?.commentBody?.toLowerCase() || '';
+                        if (body.includes('block') || body.includes('help') || body.includes('need') || body.includes('urgent')) {
+                            if (!pIssue.flags.some(f => f.type === 'help')) {
+                                pIssue.flags.push({ 
+                                    type: 'help', label: 'NEEDS HELP', color: '#DE350B', bgColor: '#FFEBE6',
+                                    detail: body.includes('block') ? 'Mentioned blocker' : 'Requested help'
+                                });
+                            }
+                        }
+                    }
+
+                    if (activity.type === 'history' && details?.field === 'status') {
+                        const toValue = details.toValue?.toLowerCase() || '';
+                        if (toValue.includes('blocked') || toValue.includes('impediment')) {
+                            if (!pIssue.flags.some(f => f.type === 'blocker')) {
+                                pIssue.flags.push({ type: 'blocker', label: 'BLOCKED', color: '#DE350B', bgColor: '#FFEBE6', detail: `Status: ${details.toValue}` });
+                            }
+                        }
+                    }
+
+                    if (activity.type === 'create') {
+                        if (!pIssue.flags.some(f => f.type === 'new')) {
+                            pIssue.flags.push({ type: 'new', label: 'NEW', color: '#0052CC', bgColor: '#DEEBFF', detail: 'Created today' });
+                        }
+                    }
+
                     if (!checkpoint.teamWork[userName]) {
                         checkpoint.teamWork[userName] = {
                             name: userName,
                             avatarUrl: activity.user.avatarUrl,
-                            tickets: new Set(),
-                            needsHelp: false
+                            statusGroups: {},
+                            hasRisk: false
                         };
                     }
-                    checkpoint.teamWork[userName].tickets.add(issueKey);
-
-                    // 2. Action Items & Needs Help Detection
-                    if (!seenIssues.has(issueKey)) {
-                        if (activity.type === 'comment') {
-                            const body = details?.commentBody?.toLowerCase() || '';
-                            if (body.includes('block') || body.includes('help') || body.includes('need') || body.includes('urgent')) {
-                                checkpoint.actionItems.push({
-                                    issueKey,
-                                    summary: activity.issue.summary,
-                                    reason: `Needs assistance: "${body.includes('block') ? 'blocker' : 'help/need'}" in comment`,
-                                    type: 'blocker',
-                                    assignee: details?.assignee
-                                });
-                                checkpoint.teamWork[userName].needsHelp = true;
-                                seenIssues.add(issueKey);
-                            }
-                        }
-
-                        if (activity.type === 'history' && details?.field === 'status') {
-                            const toValue = details.toValue?.toLowerCase() || '';
-                            if (toValue.includes('blocked') || toValue.includes('impediment')) {
-                                checkpoint.actionItems.push({
-                                    issueKey,
-                                    summary: activity.issue.summary,
-                                    reason: `Status changed to ${details.toValue}`,
-                                    type: 'blocker',
-                                    assignee: details?.assignee
-                                });
-                                seenIssues.add(issueKey);
-                            }
-                        }
-
-                        if (activity.type === 'create') {
-                            checkpoint.actionItems.push({
-                                issueKey,
-                                summary: activity.issue.summary,
-                                reason: 'Created on this day',
-                                type: 'new',
-                                assignee: details?.assignee
-                            });
-                            seenIssues.add(issueKey);
-                        }
+                    
+                    const status = (details?.status || 'Unknown').toUpperCase();
+                    if (!checkpoint.teamWork[userName].statusGroups[status]) {
+                        checkpoint.teamWork[userName].statusGroups[status] = new Set();
                     }
+                    checkpoint.teamWork[userName].statusGroups[status].add(issueKey);
+                });
 
-                    // 3. Schedule Risks (Overdue / Delayed Start)
-                    if (!riskIssues.has(issueKey)) {
-                        const dueDate = details?.dueDate ? new Date(details.dueDate).getTime() : null;
-                        const startDate = details?.startDate ? new Date(details.startDate).getTime() : null;
-                        const status = details?.status?.toLowerCase() || '';
+                issueMap.forEach((pIssue, key) => {
+                    const latestActivity = dayActivities.find(a => a.issue.key === key);
+                    const details = latestActivity?.details;
+                    
+                    if (details) {
+                        const dueDate = details.dueDate ? new Date(details.dueDate).getTime() : null;
+                        const startDate = details.startDate ? new Date(details.startDate).getTime() : null;
+                        const status = details.status?.toLowerCase() || '';
                         const isDone = status.includes('done') || status.includes('complete') || status.includes('closed');
 
                         if (!isDone) {
-                            // Overdue Check
                             if (dueDate && dueDate < targetTimestamp) {
                                 const days = Math.floor((targetTimestamp - dueDate) / (1000 * 60 * 60 * 24));
-                                checkpoint.scheduleRisks.push({
-                                    issueKey,
-                                    summary: activity.issue.summary,
-                                    type: 'overdue',
-                                    days
-                                });
-                                riskIssues.add(issueKey);
-                            }
-                            // Delayed Start Check (If still "To Do" but start date has passed)
-                            else if (startDate && startDate < targetTimestamp && (status.includes('to do') || status.includes('backlog') || status.includes('new'))) {
+                                pIssue.flags.push({ type: 'overdue', label: 'OVERDUE', color: '#BF2600', bgColor: '#FFF7E6', detail: `by ${days}d` });
+                            } else if (startDate && startDate < targetTimestamp && (status.includes('to do') || status.includes('backlog') || status.includes('new'))) {
                                 const days = Math.floor((targetTimestamp - startDate) / (1000 * 60 * 60 * 24));
-                                checkpoint.scheduleRisks.push({
-                                    issueKey,
-                                    summary: activity.issue.summary,
-                                    type: 'delayed-start',
-                                    days
-                                });
-                                riskIssues.add(issueKey);
+                                pIssue.flags.push({ type: 'delayed-start', label: 'DELAYED', color: '#822600', bgColor: '#FFF7E6', detail: `${days}d late to start` });
                             }
+                        }
+                    }
+
+                    if (pIssue.flags.length > 0) {
+                        checkpoint.priorityIssues.push(pIssue);
+                        const assignedName = pIssue.assignee;
+                        if (assignedName && checkpoint.teamWork[assignedName]) {
+                            checkpoint.teamWork[assignedName].hasRisk = true;
                         }
                     }
                 });
@@ -180,76 +195,113 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
     const hideComponent = !loading && summary?.totalActivities === 0 && selectedDate === todayStr && !isOpen;
     if (hideComponent) return null;
 
+    const riskIssuesKeys = new Set(summary?.priorityIssues.map(i => i.issueKey) || []);
+    const handledCount = summary?.priorityIssues.filter(i => handledItems.has(i.issueKey)).length || 0;
+
+    // Group Priority Issues by PIC
+    const groupedPriority = useMemo(() => {
+        if (!summary) return {};
+        const groups: Record<string, PriorityIssue[]> = {};
+        summary.priorityIssues.forEach(issue => {
+            const pic = issue.assignee || 'Unassigned';
+            if (!groups[pic]) groups[pic] = [];
+            groups[pic].push(issue);
+        });
+
+        // Sort items within each group: Needs Help first, then by key
+        Object.keys(groups).forEach(pic => {
+            groups[pic].sort((a, b) => {
+                const aHasHelp = a.flags.some(f => f.type === 'help') ? 1 : 0;
+                const bHasHelp = b.flags.some(f => f.type === 'help') ? 1 : 0;
+                if (aHasHelp !== bHasHelp) return bHasHelp - aHasHelp;
+                return a.issueKey.localeCompare(b.issueKey);
+            });
+        });
+
+        return groups;
+    }, [summary]);
+
+    const sortedPics = Object.keys(groupedPriority).sort((a, b) => {
+        if (a === 'Unassigned') return 1;
+        if (b === 'Unassigned') return -1;
+        return a.localeCompare(b);
+    });
+
     return (
         <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px', borderLeft: '4px solid #FFAB00' }}>
-            {/* Header */}
-            <div style={{ background: '#FFF0B3', color: '#172B4D', padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
-                <div onClick={() => setIsOpen(!isOpen)} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flex: 1 }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <div style={{ background: '#FFF0B3', color: '#172B4D', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
+                <div onClick={() => setIsOpen(!isOpen)} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
                         <polyline points="22 4 12 14.01 9 11.01" />
                     </svg>
-                    <span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>Daily Checkpoint</span>
-                    {!loading && (summary?.actionItems.length! > 0 || summary?.scheduleRisks.length! > 0) && (
-                        <span style={{ background: '#DE350B', color: 'white', fontSize: '0.7rem', padding: '1px 8px', borderRadius: '10px', marginLeft: '4px' }}>
-                            {(summary?.actionItems.length || 0) + (summary?.scheduleRisks.length || 0)} ISSUES
+                    <span style={{ textTransform: 'uppercase', fontSize: '0.9rem', letterSpacing: '0.5px' }}>Daily Checkpoint</span>
+                    {!loading && summary && summary.priorityIssues.length > 0 && (
+                        <span style={{ background: handledCount === summary.priorityIssues.length ? '#36B37E' : '#DE350B', color: 'white', fontSize: '0.75rem', padding: '2px 10px', borderRadius: '12px', fontWeight: 800 }}>
+                            {handledCount}/{summary.priorityIssues.length} HANDLED
                         </span>
                     )}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ background: 'rgba(255,255,255,0.5)', padding: '2px 8px', borderRadius: '4px', border: '1px solid rgba(0,0,0,0.1)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.6)', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(0,0,0,0.12)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                         <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} max={todayStr} 
-                            style={{ border: 'none', background: 'transparent', fontSize: '0.8rem', fontWeight: 700, outline: 'none', cursor: 'pointer' }} 
+                            style={{ border: 'none', background: 'transparent', fontSize: '0.85rem', fontWeight: 700, outline: 'none', cursor: 'pointer', fontFamily: 'inherit' }} 
                         />
                     </div>
-                    <span onClick={() => setIsOpen(!isOpen)} style={{ fontSize: '0.8rem', cursor: 'pointer' }}>{isOpen ? '▼' : '▶'}</span>
+                    <span onClick={() => setIsOpen(!isOpen)} style={{ fontSize: '1rem', cursor: 'pointer', color: '#6B778C' }}>{isOpen ? '▼' : '▶'}</span>
                 </div>
             </div>
 
             {isOpen && (
-                <div style={{ padding: '16px' }}>
+                <div style={{ padding: '20px' }}>
                     {loading ? (
-                        <div style={{ textAlign: 'center', color: '#666', padding: '20px' }}>Analyzing project health...</div>
+                        <div style={{ textAlign: 'center', color: '#666', padding: '30px' }}>Analyzing project activity...</div>
                     ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(400px, 1fr) 350px', gap: '30px' }}>
                             
-                            {/* Left Column: Action Items & Schedule Risks */}
                             <div>
-                                {/* Action Items */}
-                                <CheckpointSection title="Needs Attention" icon="⚠️">
-                                    {summary?.actionItems.length === 0 ? (
-                                        <EmptyMsg msg="No urgent items from activity." />
-                                    ) : (
-                                        summary?.actionItems.map((item, i) => (
-                                            <ActionItemRow key={i} item={item} baseUrl={baseUrl} />
-                                        ))
-                                    )}
-                                </CheckpointSection>
-
-                                {/* Schedule Risks */}
-                                <CheckpointSection title="Schedule Risks" icon="⏰" style={{ marginTop: '24px' }}>
-                                    {summary?.scheduleRisks.length === 0 ? (
-                                        <EmptyMsg msg="No overdue or delayed starts." />
-                                    ) : (
-                                        summary?.scheduleRisks.map((risk, i) => (
-                                            <RiskRow key={i} risk={risk} baseUrl={baseUrl} />
-                                        ))
-                                    )}
-                                </CheckpointSection>
+                                <SectionHeader title="Priority Items" desc="Grouped by PIC • Needs help items first" icon="🌟" />
+                                {summary?.priorityIssues.length === 0 ? (
+                                    <EmptyMessage msg="All clear! No urgent issues or risks found for this day." />
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                        {sortedPics.map((pic) => (
+                                            <div key={pic}>
+                                                <div style={{ fontSize: '0.65rem', color: '#6B778C', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <div style={{ height: '1px', background: '#DFE1E6', flex: 1 }}></div>
+                                                    {pic}
+                                                    <div style={{ height: '1px', background: '#DFE1E6', flex: 1 }}></div>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                    {groupedPriority[pic].map((issue, i) => (
+                                                        <PriorityCard 
+                                                            key={i} 
+                                                            issue={issue} 
+                                                            baseUrl={baseUrl} 
+                                                            isHandled={handledItems.has(issue.issueKey)}
+                                                            onToggle={() => toggleHandled(issue.issueKey)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
-                            {/* Right Column: Team Work */}
                             <div>
-                                <CheckpointSection title="Team Output" icon="👥">
-                                    {Object.keys(summary?.teamWork || {}).length === 0 ? (
-                                        <EmptyMsg msg="No team activity recorded." />
-                                    ) : (
-                                        Object.values(summary!.teamWork).map((user, i) => (
-                                            <UserWorkRow key={i} user={user} baseUrl={baseUrl} />
-                                        ))
-                                    )}
-                                </CheckpointSection>
+                                <SectionHeader title="Team Activity" desc="Who was active on which tickets (Grouped by status)" icon="👥" />
+                                {Object.keys(summary?.teamWork || {}).length === 0 ? (
+                                    <EmptyMessage msg="No member activity recorded on this day." />
+                                ) : (
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                        {Object.values(summary!.teamWork).map((user, i) => (
+                                            <UserWorkItem key={i} user={user} baseUrl={baseUrl} riskKeys={riskIssuesKeys} handledItems={handledItems} />
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                         </div>
@@ -260,70 +312,140 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
     );
 }
 
-// UI Components
-function CheckpointSection({ title, icon, children, style }: any) {
+function SectionHeader({ title, desc, icon }: { title: string, desc: string, icon: string }) {
     return (
-        <div style={style}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                <span style={{ fontSize: '1rem' }}>{icon}</span>
-                <h4 style={{ fontSize: '0.8rem', color: '#6B778C', textTransform: 'uppercase', fontWeight: 700, margin: 0 }}>{title}</h4>
+        <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '1.1rem' }}>{icon}</span>
+                <h4 style={{ fontSize: '0.85rem', color: '#172B4D', textTransform: 'uppercase', fontWeight: 800, margin: 0 }}>{title}</h4>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>{children}</div>
+            <p style={{ margin: '2px 0 0 28px', fontSize: '0.75rem', color: '#6B778C' }}>{desc}</p>
         </div>
     );
 }
 
-function EmptyMsg({ msg }: { msg: string }) {
-    return <p style={{ color: '#00875A', fontSize: '0.85rem', fontStyle: 'italic', margin: 0 }}>{msg}</p>;
-}
-
-function ActionItemRow({ item, baseUrl }: any) {
+function EmptyMessage({ msg }: { msg: string }) {
     return (
-        <div style={{ padding: '8px 12px', background: item.type === 'blocker' ? '#FFEBE6' : '#FAFBFC', border: '1px solid #DFE1E6', borderRadius: '6px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <a href={`${baseUrl}/browse/${item.issueKey}`} target="_blank" style={{ color: '#0052CC', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}>{item.issueKey}</a>
-                {item.assignee && <span style={{ fontSize: '0.7rem', background: '#DFE1E6', padding: '2px 6px', borderRadius: '4px' }}>PIC: {item.assignee}</span>}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: '#172B4D', fontWeight: 500 }}>{item.summary}</div>
-            <div style={{ fontSize: '0.7rem', color: '#DE350B', marginTop: '4px', fontStyle: 'italic' }}>{item.reason}</div>
+        <div style={{ padding: '24px', textAlign: 'center', background: '#F4F5F7', borderRadius: '8px', border: '1px dashed #DFE1E6' }}>
+            <p style={{ color: '#00875A', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{msg}</p>
         </div>
     );
 }
 
-function RiskRow({ risk, baseUrl }: any) {
-    const isOverdue = risk.type === 'overdue';
+function PriorityCard({ issue, baseUrl, isHandled, onToggle }: { issue: PriorityIssue, baseUrl: string, isHandled: boolean, onToggle: () => void }) {
     return (
-        <div style={{ padding: '8px 12px', background: '#FFF7E6', border: '1px solid #FFD591', borderRadius: '6px' }}>
-             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                <a href={`${baseUrl}/browse/${risk.issueKey}`} target="_blank" style={{ color: '#0052CC', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none' }}>{risk.issueKey}</a>
-                <span style={{ fontSize: '0.7rem', color: '#BF2600', fontWeight: 700 }}>{isOverdue ? 'OVERDUE' : 'DELAYED START'}</span>
+        <div style={{ 
+            background: isHandled ? '#FAFBFC' : '#FFFFFF', 
+            border: `1px solid ${isHandled ? '#DFE1E6' : '#DFE1E6'}`, 
+            borderRadius: '10px', 
+            padding: '12px 16px', 
+            boxShadow: isHandled ? 'none' : '0 1px 3px rgba(0,0,0,0.05)', 
+            opacity: isHandled ? 0.6 : 1,
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'flex-start',
+            transition: 'all 0.2s'
+        }}>
+            <div 
+                onClick={onToggle}
+                style={{ 
+                    marginTop: '2px',
+                    width: '20px', height: '20px', borderRadius: '4px', 
+                    border: `2px solid ${isHandled ? '#36B37E' : '#DFE1E6'}`,
+                    background: isHandled ? '#36B37E' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', flexShrink: 0
+                }}
+            >
+                {isHandled && <span style={{ color: 'white', fontSize: '12px' }}>✓</span>}
             </div>
-            <div style={{ fontSize: '0.8rem', color: '#172B4D', fontWeight: 500 }}>{risk.summary}</div>
-            <div style={{ fontSize: '0.7rem', color: '#822600', marginTop: '4px' }}>
-                {isOverdue ? `Expired ${risk.days} days ago` : `Start date delayed by ${risk.days} days`}
+            
+            <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {issue.flags.map((flag, idx) => (
+                            <span key={idx} title={flag.detail} style={{ background: flag.bgColor, color: flag.color, fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', border: `1px solid ${flag.color}40`, letterSpacing: '0.3px', textDecoration: isHandled ? 'line-through' : 'none' }}>
+                                {flag.label} {flag.type === 'overdue' || flag.type === 'delayed-start' ? flag.detail : ''}
+                            </span>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                        {issue.status && (
+                            <div style={{ fontSize: '0.65rem', background: '#EBECF0', color: '#42526E', padding: '1px 6px', borderRadius: '3px', fontWeight: 700, textTransform: 'uppercase' }}>
+                                {issue.status}
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <a href={`${baseUrl}/browse/${issue.issueKey}`} target="_blank" style={{ color: '#0052CC', fontWeight: 800, fontSize: '0.9rem', textDecoration: isHandled ? 'line-through' : 'none', borderBottom: '1px solid transparent' }}>
+                        {issue.issueKey}
+                    </a>
+                    <span style={{ fontSize: '0.9rem', color: '#172B4D', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: isHandled ? 'line-through' : 'none' }}>
+                        {issue.summary}
+                    </span>
+                </div>
+                {issue.flags.some(f => f.type === 'help') && (
+                    <div style={{ marginTop: '8px', padding: '6px 10px', background: '#FFF0B3', borderRadius: '4px', fontSize: '0.75rem', color: '#172B4D', fontWeight: 500, fontStyle: 'italic', display: 'flex', gap: '6px' }}>
+                        <span>💡</span> {issue.flags.find(f => f.type === 'help')?.detail}
+                    </div>
+                )}
             </div>
         </div>
     );
 }
 
-function UserWorkRow({ user, baseUrl }: any) {
+function UserWorkItem({ user, baseUrl, riskKeys, handledItems }: { user: UserWork, baseUrl: string, riskKeys: Set<string>, handledItems: Set<string> }) {
+    const activeRiskKeys = Array.from(Object.values(user.statusGroups)).flatMap(set => Array.from(set)).filter(k => riskKeys.has(k) && !handledItems.has(k));
+    const hasUncheckedRisk = activeRiskKeys.length > 0;
+
     return (
-        <div style={{ display: 'flex', gap: '12px', padding: '10px', background: '#FAFBFC', border: '1px solid #DFE1E6', borderRadius: '8px', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', gap: '14px', padding: '12px', background: hasUncheckedRisk ? '#FFFAE6' : '#FAFBFC', border: `1px solid ${hasUncheckedRisk ? '#FFE380' : '#DFE1E6'}`, borderRadius: '10px', alignItems: 'flex-start' }}>
             {user.avatarUrl ? (
-                <img src={user.avatarUrl} style={{ width: 32, height: 32, borderRadius: '50%' }} />
+                <img src={user.avatarUrl} style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
             ) : (
-                <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0052CC', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem' }}>
+                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#0052CC', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700 }}>
                     {user.name.substring(0, 2).toUpperCase()}
                 </div>
             )}
             <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontWeight: 700, fontSize: '0.85rem' }}>{user.name}</span>
-                    {user.needsHelp && <span style={{ color: '#DE350B', fontSize: '0.7rem', fontWeight: 800 }}>⚠️ NEEDS HELP</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#172B4D' }}>{user.name}</span>
+                    {hasUncheckedRisk && <span title="Responsible for pending priority items" style={{ color: '#BF2600', fontSize: '1rem' }}>⚠️</span>}
                 </div>
-                <div style={{ marginTop: '6px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                    {Array.from(user.tickets).map((key: any) => (
-                        <a key={key} href={`${baseUrl}/browse/${key}`} target="_blank" style={{ fontSize: '0.7rem', background: '#EBECF0', color: '#42526E', padding: '2px 6px', borderRadius: '4px', textDecoration: 'none', border: '1px solid #DFE1E6' }}>{key}</a>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {Object.entries(user.statusGroups).sort(([a], [b]) => a.localeCompare(b)).map(([status, tickets]) => (
+                        <div key={status}>
+                            <div style={{ fontSize: '0.65rem', color: '#6B778C', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.3px' }}>
+                                {status}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                                {Array.from(tickets).map((key) => {
+                                    const isRisk = riskKeys.has(key);
+                                    const isHandled = handledItems.has(key);
+                                    return (
+                                        <a key={key} href={`${baseUrl}/browse/${key}`} target="_blank" 
+                                            style={{ 
+                                                fontSize: '0.7rem', 
+                                                background: isHandled ? '#F4F5F7' : (isRisk ? '#FFEBE6' : '#EBECF0'), 
+                                                color: isHandled ? '#6B778C' : (isRisk ? '#BF2600' : '#42526E'), 
+                                                padding: '2px 8px', 
+                                                borderRadius: '6px', 
+                                                textDecoration: isHandled ? 'line-through' : 'none', 
+                                                fontWeight: (isRisk && !isHandled) ? 700 : 500,
+                                                border: `1px solid ${isHandled ? '#EBECF0' : (isRisk ? '#FFBDAD' : '#DFE1E6')}`,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '4px',
+                                                opacity: isHandled ? 0.6 : 1
+                                            }}>
+                                            {key} {(isRisk && !isHandled) && <span style={{ fontSize: '0.8rem', lineHeight: 1 }}>•</span>}
+                                        </a>
+                                    );
+                                })}
+                            </div>
+                        </div>
                     ))}
                 </div>
             </div>

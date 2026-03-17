@@ -31,12 +31,19 @@ export interface ActivityItem {
 export async function getProjectRecentActivity(projectKey: string, username?: string, issueKey?: string, date?: string): Promise<ActivityItem[]> {
   const jira = await getJiraClient();
   
-  // Look back 14 days for activity by default, or target specific date
+  // Target specific date or look back 14 days
   let jql = `project = "${projectKey}"`;
   
   if (date) {
-      // Filter for the entire day
-      jql += ` AND updated >= "${date}" AND updated <= "${date} 23:59"`;
+      // Fetch +/- 1 day to be safe with timezones, then filter exactly in JS
+      // This ensures we catch early morning or late night updates regardless of Jira server TZ
+      const d = new Date(date);
+      const prev = new Date(d); prev.setDate(d.getDate() - 1);
+      const next = new Date(d); next.setDate(d.getDate() + 1);
+      const prevStr = prev.toISOString().split('T')[0];
+      const nextStr = next.toISOString().split('T')[0];
+      
+      jql += ` AND updated >= "${prevStr}" AND updated <= "${nextStr} 23:59"`;
   } else {
       jql += ` AND updated >= -14d`;
   }
@@ -61,7 +68,7 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
   try {
       const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
         jql,
-        maxResults: 50, // Increased limit
+        maxResults: 100, // Increased limit for daily volume
         fields: ['summary', 'comment', 'creator', 'created', 'updated', 'status', 'assignee', 'duedate', 'customfield_10015']
       });
       console.log(`[RecentActivity] Jira Response: Found ${search.issues?.length || 0} issues`);
@@ -115,9 +122,9 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
       let endCutoff = Date.now() + (24 * 60 * 60 * 1000); // Future buffer
 
       if (date) {
-          const d = new Date(date);
-          cutoff = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-          endCutoff = cutoff + (24 * 60 * 60 * 1000);
+          const [y, m, d] = date.split('-').map(Number);
+          cutoff = new Date(y, m - 1, d, 0, 0, 0, 0).getTime();
+          endCutoff = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
       }
       
       const creatorName = issue.fields.creator?.displayName || 'Unknown';
@@ -217,7 +224,11 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
                           details: {
                               field: item.field,
                               fromValue: item.fromString,
-                              toValue: item.toString
+                              toValue: item.toString,
+                              status: issue.fields.status?.name,
+                              assignee: issue.fields.assignee?.displayName,
+                              dueDate: issue.fields.duedate,
+                              startDate: issue.fields.customfield_10015
                           }
                       });
                   });
