@@ -13,8 +13,14 @@ interface PriorityIssue {
     summary: string;
     status?: string;
     assignee?: string;
+    updated?: string;
+    isStale?: boolean;
+    driftCount?: number;
+    streakDays?: number;
+    blockedBy?: { key: string; summary?: string }[];
+    blocks?: { key: string; summary?: string }[];
     flags: {
-        type: 'blocker' | 'overdue' | 'delayed-start' | 'new' | 'help';
+        type: 'blocker' | 'overdue' | 'delayed-start' | 'new' | 'help' | 'stale';
         label: string;
         color: string;
         bgColor: string;
@@ -27,12 +33,14 @@ interface UserWork {
     avatarUrl?: string;
     statusGroups: Record<string, Set<string>>;
     hasRisk: boolean;
+    activeCount: number;
 }
 
 interface CheckpointSummary {
     totalActivities: number;
     priorityIssues: PriorityIssue[];
     teamWork: Record<string, UserWork>;
+    handledHistory: { date: string; count: number; items: string[] }[];
 }
 
 export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheckpointProps) {
@@ -86,11 +94,13 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
                 const checkpoint: CheckpointSummary = {
                     totalActivities: dayActivities.length,
                     priorityIssues: [],
-                    teamWork: {}
+                    teamWork: {},
+                    handledHistory: [] // Will populate from localStorage summary
                 };
 
                 const issueMap = new Map<string, PriorityIssue>();
                 const targetTimestamp = new Date(selectedDate).getTime();
+                const twoDaysAgo = targetTimestamp - (2 * 24 * 60 * 60 * 1000);
 
                 dayActivities.forEach(activity => {
                     const issueKey = activity.issue.key;
@@ -98,24 +108,69 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
                     const userName = activity.user.name;
 
                     if (!issueMap.has(issueKey)) {
+                        // Advanced metrics analysis
+                        const updated = activity.issue.updated ? new Date(activity.issue.updated).getTime() : 0;
+                        const isStale = updated > 0 && updated < twoDaysAgo;
+                        
+                        // Drift & Streak from history
+                        let driftCount = 0;
+                        let earliestHistory = Date.now();
+                        const fullHistory = details?.fullHistory || [];
+                        fullHistory.forEach((h: any) => {
+                            const hTime = new Date(h.created).getTime();
+                            if (hTime < earliestHistory) earliestHistory = hTime;
+                            
+                            h.items.forEach((item: any) => {
+                                if (item.field === 'duedate' || item.field === 'customfield_10015') {
+                                    driftCount++;
+                                }
+                            });
+                        });
+
+                        // Blockers from issueLinks
+                        const issueLinks = activity.issue.issueLinks || [];
+                        const blockedBy = issueLinks
+                            .filter((l: any) => l.inwardIssue)
+                            .map((l: any) => ({ key: l.inwardIssue.key, summary: l.inwardIssue.fields?.summary }));
+                        const blocks = issueLinks
+                            .filter((l: any) => l.outwardIssue)
+                            .map((l: any) => ({ key: l.outwardIssue.key, summary: l.outwardIssue.fields?.summary }));
+
                         issueMap.set(issueKey, {
                             issueKey,
                             summary: activity.issue.summary,
                             status: details?.status,
                             assignee: details?.assignee,
+                            updated: activity.issue.updated,
+                            isStale,
+                            driftCount,
+                            streakDays: Math.floor((targetTimestamp - earliestHistory) / (1000 * 60 * 60 * 24)),
+                            blockedBy,
+                            blocks,
                             flags: []
                         });
                     }
                     const pIssue = issueMap.get(issueKey)!;
 
+                    if (pIssue.isStale && !pIssue.flags.some(f => f.type === 'stale')) {
+                         pIssue.flags.push({ type: 'stale', label: 'STALE', color: '#42526E', bgColor: '#F4F5F7', detail: 'No activity for >48h' });
+                    }
+
                     if (activity.type === 'comment') {
                         const body = details?.commentBody?.toLowerCase() || '';
                         if (body.includes('block') || body.includes('help') || body.includes('need') || body.includes('urgent')) {
-                            if (!pIssue.flags.some(f => f.type === 'help')) {
+                            const requesterPrefix = body.includes('block') ? 'Mentioned blocker' : 'Requested help';
+                            const detail = `${requesterPrefix} by ${userName}`;
+                            const existing = pIssue.flags.find(f => f.type === 'help');
+                            if (!existing) {
                                 pIssue.flags.push({ 
                                     type: 'help', label: 'NEEDS HELP', color: '#DE350B', bgColor: '#FFEBE6',
-                                    detail: body.includes('block') ? 'Mentioned blocker' : 'Requested help'
+                                    detail: detail
                                 });
+                            } else {
+                                if (!existing.detail?.includes(userName)) {
+                                    existing.detail += `, ${userName}`;
+                                }
                             }
                         }
                     }
@@ -129,6 +184,13 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
                         }
                     }
 
+                    if ((pIssue.blockedBy?.length || 0) > 0 && !pIssue.flags.some(f => f.label === 'BLOCKED BY')) {
+                         pIssue.flags.push({ type: 'blocker', label: 'BLOCKED BY', color: '#DE350B', bgColor: '#FFEBE6', detail: `Waiting on ${pIssue.blockedBy!.map(b => b.key).join(', ')}` });
+                    }
+                    if ((pIssue.blocks?.length || 0) > 0 && !pIssue.flags.some(f => f.label === 'BLOCKS OTHERS')) {
+                         pIssue.flags.push({ type: 'blocker', label: 'BLOCKS OTHERS', color: '#DE350B', bgColor: '#FFEBE6', detail: `Blocking ${pIssue.blocks!.map(b => b.key).join(', ')}` });
+                    }
+
                     if (activity.type === 'create') {
                         if (!pIssue.flags.some(f => f.type === 'new')) {
                             pIssue.flags.push({ type: 'new', label: 'NEW', color: '#0052CC', bgColor: '#DEEBFF', detail: 'Created today' });
@@ -140,7 +202,8 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
                             name: userName,
                             avatarUrl: activity.user.avatarUrl,
                             statusGroups: {},
-                            hasRisk: false
+                            hasRisk: false,
+                            activeCount: 0
                         };
                     }
                     
@@ -148,8 +211,29 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
                     if (!checkpoint.teamWork[userName].statusGroups[status]) {
                         checkpoint.teamWork[userName].statusGroups[status] = new Set();
                     }
-                    checkpoint.teamWork[userName].statusGroups[status].add(issueKey);
+                    if (!checkpoint.teamWork[userName].statusGroups[status].has(issueKey)) {
+                        checkpoint.teamWork[userName].statusGroups[status].add(issueKey);
+                        if (!status.includes('DONE') && !status.includes('CLOSED')) {
+                            checkpoint.teamWork[userName].activeCount++;
+                        }
+                    }
                 });
+
+                // Load Handled History from localStorage (past 7 days)
+                const history: CheckpointSummary['handledHistory'] = [];
+                for (let i = 1; i <= 7; i++) {
+                    const d = new Date(targetTimestamp);
+                    d.setDate(d.getDate() - i);
+                    const ds = d.toISOString().split('T')[0];
+                    const stored = localStorage.getItem(`checkpoint-handled-${projectKey}-${ds}`);
+                    if (stored) {
+                        const items = JSON.parse(stored);
+                        if (items.length > 0) {
+                            history.push({ date: ds, count: items.length, items });
+                        }
+                    }
+                }
+                checkpoint.handledHistory = history;
 
                 issueMap.forEach((pIssue, key) => {
                     const latestActivity = dayActivities.find(a => a.issue.key === key);
@@ -228,7 +312,7 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
     });
 
     return (
-        <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', overflow: 'hidden', marginBottom: '12px', borderLeft: '4px solid #FFAB00' }}>
+        <div style={{ background: 'white', borderRadius: 8, boxShadow: '0 1px 2px rgba(0,0,0,0.1)', marginBottom: '12px', borderLeft: '4px solid #FFAB00' }}>
             <div style={{ background: '#FFF0B3', color: '#172B4D', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontWeight: 600 }}>
                 <div onClick={() => setIsOpen(!isOpen)} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1 }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -266,15 +350,14 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
                                 {summary?.priorityIssues.length === 0 ? (
                                     <EmptyMessage msg="All clear! No urgent issues or risks found for this day." />
                                 ) : (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                         {sortedPics.map((pic) => (
-                                            <div key={pic}>
-                                                <div style={{ fontSize: '0.65rem', color: '#6B778C', fontWeight: 800, textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                    <div style={{ height: '1px', background: '#DFE1E6', flex: 1 }}></div>
+                                            <div key={pic} style={{ marginBottom: '4px' }}>
+                                                <div style={{ fontSize: '0.6rem', color: '#6B778C', fontWeight: 800, textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                                                     {pic}
                                                     <div style={{ height: '1px', background: '#DFE1E6', flex: 1 }}></div>
                                                 </div>
-                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                                     {groupedPriority[pic].map((issue, i) => (
                                                         <PriorityCard 
                                                             key={i} 
@@ -306,6 +389,39 @@ export default function DailyCheckpoint({ projectKey, baseUrl = '' }: DailyCheck
 
                         </div>
                     )}
+
+                    {!loading && summary && summary.handledHistory.length > 0 && (
+                        <HandledHistorySection history={summary.handledHistory} baseUrl={baseUrl} />
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+function HandledHistorySection({ history, baseUrl }: { history: CheckpointSummary['handledHistory'], baseUrl: string }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    return (
+        <div style={{ marginTop: '24px', borderTop: '1px solid #DFE1E6', paddingTop: '16px' }}>
+            <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                style={{ background: 'none', border: 'none', color: '#0052CC', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+                {isExpanded ? '▼' : '▶'} SHOW RECENTLY HANDLED ({history.length} DAYS)
+            </button>
+            {isExpanded && (
+                <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {history.map((h, i) => (
+                        <div key={i} style={{ fontSize: '0.75rem', color: '#6B778C', display: 'flex', gap: '12px', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 600, width: '80px' }}>{h.date}</span>
+                            <span style={{ background: '#E3FCEF', color: '#006644', padding: '1px 6px', borderRadius: '10px', fontSize: '10px' }}>{h.count} FIXED</span>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                {h.items.map(key => (
+                                    <a key={key} href={`${baseUrl}/browse/${key}`} target="_blank" style={{ color: '#0052CC', textDecoration: 'none' }}>{key}</a>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
@@ -326,23 +442,55 @@ function SectionHeader({ title, desc, icon }: { title: string, desc: string, ico
 
 function EmptyMessage({ msg }: { msg: string }) {
     return (
-        <div style={{ padding: '24px', textAlign: 'center', background: '#F4F5F7', borderRadius: '8px', border: '1px dashed #DFE1E6' }}>
-            <p style={{ color: '#00875A', fontSize: '0.85rem', fontWeight: 500, margin: 0 }}>{msg}</p>
+        <div style={{ padding: '16px', textAlign: 'center', background: '#F4F5F7', borderRadius: '8px', border: '1px dashed #DFE1E6' }}>
+            <p style={{ color: '#00875A', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>{msg}</p>
         </div>
     );
 }
 
+const tooltipStyles = `
+    .instant-tooltip {
+        position: relative;
+        cursor: help;
+    }
+    .instant-tooltip::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 120%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #172B4D;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.1s;
+        z-index: 100;
+        pointer-events: none;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+    .instant-tooltip:hover::after {
+        opacity: 1;
+        visibility: visible;
+    }
+`;
+
 function PriorityCard({ issue, baseUrl, isHandled, onToggle }: { issue: PriorityIssue, baseUrl: string, isHandled: boolean, onToggle: () => void }) {
     return (
+        <>
+        <style>{tooltipStyles}</style>
         <div style={{ 
             background: isHandled ? '#FAFBFC' : '#FFFFFF', 
             border: `1px solid ${isHandled ? '#DFE1E6' : '#DFE1E6'}`, 
             borderRadius: '10px', 
-            padding: '12px 16px', 
+            padding: '8px 12px', 
             boxShadow: isHandled ? 'none' : '0 1px 3px rgba(0,0,0,0.05)', 
             opacity: isHandled ? 0.6 : 1,
             display: 'flex',
-            gap: '12px',
+            gap: '10px',
             alignItems: 'flex-start',
             transition: 'all 0.2s'
         }}>
@@ -350,48 +498,51 @@ function PriorityCard({ issue, baseUrl, isHandled, onToggle }: { issue: Priority
                 onClick={onToggle}
                 style={{ 
                     marginTop: '2px',
-                    width: '20px', height: '20px', borderRadius: '4px', 
+                    width: '18px', height: '18px', borderRadius: '4px', 
                     border: `2px solid ${isHandled ? '#36B37E' : '#DFE1E6'}`,
                     background: isHandled ? '#36B37E' : 'transparent',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     cursor: 'pointer', flexShrink: 0
                 }}
             >
-                {isHandled && <span style={{ color: 'white', fontSize: '12px' }}>✓</span>}
+                {isHandled && <span style={{ color: 'white', fontSize: '10px' }}>✓</span>}
             </div>
             
             <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                         {issue.flags.map((flag, idx) => (
-                            <span key={idx} title={flag.detail} style={{ background: flag.bgColor, color: flag.color, fontSize: '0.65rem', fontWeight: 800, padding: '2px 8px', borderRadius: '4px', border: `1px solid ${flag.color}40`, letterSpacing: '0.3px', textDecoration: isHandled ? 'line-through' : 'none' }}>
+                            <span key={idx} className="instant-tooltip" data-tooltip={flag.detail} style={{ background: flag.bgColor, color: flag.color, fontSize: '0.6rem', fontWeight: 800, padding: '1px 6px', borderRadius: '4px', border: `1px solid ${flag.color}40`, letterSpacing: '0.3px', textDecoration: isHandled ? 'line-through' : 'none' }}>
                                 {flag.label} {flag.type === 'overdue' || flag.type === 'delayed-start' ? flag.detail : ''}
                             </span>
                         ))}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                         {!isHandled && (
+                             <div style={{ display: 'flex', gap: '4px' }}>
+                                 {issue.isStale && <span className="instant-tooltip" data-tooltip="Stale: No activity for >48h" style={{ fontSize: '13px' }}>🧊</span>}
+                                 {(issue.driftCount || 0) > 1 && <span className="instant-tooltip" data-tooltip={`Timeline Drift: ${issue.driftCount} date changes detected`} style={{ fontSize: '13px' }}>📈</span>}
+                                 {(issue.streakDays || 0) > 3 && <span className="instant-tooltip" data-tooltip={`Survival Streak: ${issue.streakDays} days in focus`} style={{ fontSize: '13px' }}>🔥</span>}
+                             </div>
+                         )}
                         {issue.status && (
-                            <div style={{ fontSize: '0.65rem', background: '#EBECF0', color: '#42526E', padding: '1px 6px', borderRadius: '3px', fontWeight: 700, textTransform: 'uppercase' }}>
+                            <div style={{ fontSize: '0.6rem', background: '#EBECF0', color: '#42526E', padding: '1px 4px', borderRadius: '3px', fontWeight: 700, textTransform: 'uppercase' }}>
                                 {issue.status}
                             </div>
                         )}
                     </div>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <a href={`${baseUrl}/browse/${issue.issueKey}`} target="_blank" style={{ color: '#0052CC', fontWeight: 800, fontSize: '0.9rem', textDecoration: isHandled ? 'line-through' : 'none', borderBottom: '1px solid transparent' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <a href={`${baseUrl}/browse/${issue.issueKey}`} target="_blank" style={{ color: '#0052CC', fontWeight: 800, fontSize: '0.8rem', textDecoration: isHandled ? 'line-through' : 'none', borderBottom: '1px solid transparent' }}>
                         {issue.issueKey}
                     </a>
-                    <span style={{ fontSize: '0.9rem', color: '#172B4D', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: isHandled ? 'line-through' : 'none' }}>
+                    <span style={{ fontSize: '0.85rem', color: '#172B4D', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textDecoration: isHandled ? 'line-through' : 'none' }}>
                         {issue.summary}
                     </span>
                 </div>
-                {issue.flags.some(f => f.type === 'help') && (
-                    <div style={{ marginTop: '8px', padding: '6px 10px', background: '#FFF0B3', borderRadius: '4px', fontSize: '0.75rem', color: '#172B4D', fontWeight: 500, fontStyle: 'italic', display: 'flex', gap: '6px' }}>
-                        <span>💡</span> {issue.flags.find(f => f.type === 'help')?.detail}
-                    </div>
-                )}
             </div>
         </div>
+        </>
     );
 }
 
@@ -399,38 +550,44 @@ function UserWorkItem({ user, baseUrl, riskKeys, handledItems }: { user: UserWor
     const activeRiskKeys = Array.from(Object.values(user.statusGroups)).flatMap(set => Array.from(set)).filter(k => riskKeys.has(k) && !handledItems.has(k));
     const hasUncheckedRisk = activeRiskKeys.length > 0;
 
+    // Heatmap color logic
+    const heatmapColor = user.activeCount > 5 ? '#DE350B' : user.activeCount > 3 ? '#FFAB00' : '#36B37E';
+
     return (
-        <div style={{ display: 'flex', gap: '14px', padding: '12px', background: hasUncheckedRisk ? '#FFFAE6' : '#FAFBFC', border: `1px solid ${hasUncheckedRisk ? '#FFE380' : '#DFE1E6'}`, borderRadius: '10px', alignItems: 'flex-start' }}>
-            {user.avatarUrl ? (
-                <img src={user.avatarUrl} style={{ width: 36, height: 36, borderRadius: '50%', border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
-            ) : (
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#0052CC', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.85rem', fontWeight: 700 }}>
-                    {user.name.substring(0, 2).toUpperCase()}
-                </div>
-            )}
+        <div style={{ display: 'flex', gap: '10px', padding: '8px 12px', background: hasUncheckedRisk ? '#FFFAE6' : '#FAFBFC', border: `1px solid ${hasUncheckedRisk ? '#FFE380' : '#DFE1E6'}`, borderRadius: '10px', alignItems: 'flex-start' }}>
+            <div style={{ position: 'relative' }}>
+                {user.avatarUrl ? (
+                    <img src={user.avatarUrl} style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }} />
+                ) : (
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#0052CC', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: 700 }}>
+                        {user.name.substring(0, 2).toUpperCase()}
+                    </div>
+                )}
+                <div title={`Workload Heatmap: ${user.activeCount} active items`} style={{ position: 'absolute', bottom: -1, right: -1, width: 10, height: 10, borderRadius: '50%', border: '1px solid white', background: heatmapColor }} />
+            </div>
             <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#172B4D' }}>{user.name}</span>
-                    {hasUncheckedRisk && <span title="Responsible for pending priority items" style={{ color: '#BF2600', fontSize: '1rem' }}>⚠️</span>}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontWeight: 800, fontSize: '0.85rem', color: '#172B4D' }}>{user.name}</span>
+                    {hasUncheckedRisk && <span className="instant-tooltip" data-tooltip="Responsible for pending priority items" style={{ color: '#BF2600', fontSize: '0.9rem' }}>⚠️</span>}
                 </div>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {Object.entries(user.statusGroups).sort(([a], [b]) => a.localeCompare(b)).map(([status, tickets]) => (
                         <div key={status}>
-                            <div style={{ fontSize: '0.65rem', color: '#6B778C', fontWeight: 700, textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.3px' }}>
+                            <div style={{ fontSize: '0.6rem', color: '#6B778C', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px', letterSpacing: '0.3px' }}>
                                 {status}
                             </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                                 {Array.from(tickets).map((key) => {
                                     const isRisk = riskKeys.has(key);
                                     const isHandled = handledItems.has(key);
                                     return (
                                         <a key={key} href={`${baseUrl}/browse/${key}`} target="_blank" 
                                             style={{ 
-                                                fontSize: '0.7rem', 
+                                                fontSize: '0.65rem', 
                                                 background: isHandled ? '#F4F5F7' : (isRisk ? '#FFEBE6' : '#EBECF0'), 
                                                 color: isHandled ? '#6B778C' : (isRisk ? '#BF2600' : '#42526E'), 
-                                                padding: '2px 8px', 
+                                                padding: '1px 6px', 
                                                 borderRadius: '6px', 
                                                 textDecoration: isHandled ? 'line-through' : 'none', 
                                                 fontWeight: (isRisk && !isHandled) ? 700 : 500,
@@ -440,7 +597,7 @@ function UserWorkItem({ user, baseUrl, riskKeys, handledItems }: { user: UserWor
                                                 gap: '4px',
                                                 opacity: isHandled ? 0.6 : 1
                                             }}>
-                                            {key} {(isRisk && !isHandled) && <span style={{ fontSize: '0.8rem', lineHeight: 1 }}>•</span>}
+                                            {key} {(isRisk && !isHandled) && <span style={{ fontSize: '0.7rem', lineHeight: 1 }}>•</span>}
                                         </a>
                                     );
                                 })}

@@ -14,6 +14,8 @@ export interface ActivityItem {
     key: string;
     summary: string;
     self: string; // to derive link if needed
+    updated?: string;
+    issueLinks?: any[];
   };
   details?: {
     field?: string;
@@ -25,6 +27,7 @@ export interface ActivityItem {
     assignee?: string;
     dueDate?: string;
     startDate?: string;
+    fullHistory?: any[];
   };
 }
 
@@ -69,7 +72,7 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
       const search = await jira.issueSearch.searchForIssuesUsingJqlEnhancedSearchPost({
         jql,
         maxResults: 100, // Increased limit for daily volume
-        fields: ['summary', 'comment', 'creator', 'created', 'updated', 'status', 'assignee', 'duedate', 'customfield_10015']
+        fields: ['summary', 'comment', 'creator', 'created', 'updated', 'status', 'assignee', 'duedate', 'customfield_10015', 'issuelinks']
       });
       console.log(`[RecentActivity] Jira Response: Found ${search.issues?.length || 0} issues`);
       issues = search.issues || [];
@@ -108,10 +111,12 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
   for (const issue of issues) {
       if (!issue.fields) continue;
 
-      const issueData = {
+      const issueData: ActivityItem['issue'] = {
           key: issue.key,
           summary: issue.fields.summary,
-          self: issue.self || ''
+          self: issue.self || '',
+          updated: issue.fields.updated,
+          issueLinks: issue.fields.issuelinks
       };
 
       let hasActivity = false;
@@ -228,7 +233,8 @@ export async function getProjectRecentActivity(projectKey: string, username?: st
                               status: issue.fields.status?.name,
                               assignee: issue.fields.assignee?.displayName,
                               dueDate: issue.fields.duedate,
-                              startDate: issue.fields.customfield_10015
+                              startDate: issue.fields.customfield_10015,
+                              fullHistory: histories // Pass all changes for advanced metrics
                           }
                       });
                   });
